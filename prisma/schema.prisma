@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @db.Uuid
+  email     String?  @unique
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skillMaps  SkillMap[]
+  progresses UserNodeProgress[]
+
+  @@map("users")
+}
+
+model SkillMap {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  prompt    String
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes Node[]
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("skill_maps")
+}
+
+model Node {
+  id          String  @id @default(uuid()) @db.Uuid
+  skillMapId  String  @db.Uuid
+  parentId    String? @db.Uuid
+  title       String
+  description String  @db.Text
+  order       Int     @map("sort_order")
+  tags        Json    @default("[]")
+
+  skillMap   SkillMap           @relation(fields: [skillMapId], references: [id], onDelete: Cascade)
+  parent     Node?              @relation("NodeToNode", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Node[]             @relation("NodeToNode")
+  progresses UserNodeProgress[]
+
+  @@index([skillMapId])
+  @@index([parentId])
+  @@index([skillMapId, parentId, order])
+  @@map("nodes")
+}
+
+model UserNodeProgress {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  nodeId    String         @db.Uuid
+  status    ProgressStatus @default(NOT_STARTED)
+  updatedAt DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@index([nodeId])
+  @@map("user_node_progresses")
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  LEARNING
+  COMPLETED
+}
