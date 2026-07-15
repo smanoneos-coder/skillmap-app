@@ -19,14 +19,22 @@ export async function GET(request: Request) {
 
   if (error) {
     logSafeAuthError("OAuth code exchange failed", error);
-    return NextResponse.redirect(new URL("/?auth=exchange-error", requestUrl.origin));
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      return applyCookies(NextResponse.redirect(new URL(nextPath, requestUrl.origin)));
+    }
+
+    return applyCookies(NextResponse.redirect(new URL("/?auth=exchange-error", requestUrl.origin)));
   }
 
   const accessToken = data.session?.access_token;
 
   if (!accessToken) {
     console.error("OAuth code exchange did not return a session.");
-    return NextResponse.redirect(new URL("/?auth=missing-session", requestUrl.origin));
+    return applyCookies(NextResponse.redirect(new URL("/?auth=missing-session", requestUrl.origin)));
   }
 
   const {
@@ -36,14 +44,14 @@ export async function GET(request: Request) {
 
   if (userError || !user) {
     logSafeAuthError("OAuth user lookup failed", userError);
-    return NextResponse.redirect(new URL("/?auth=user-error", requestUrl.origin));
+    return applyCookies(NextResponse.redirect(new URL("/?auth=user-error", requestUrl.origin)));
   }
 
   try {
     await syncSupabaseUser(user);
   } catch (syncError) {
     logSafeAuthError("Public user sync failed", syncError);
-    return NextResponse.redirect(new URL("/?auth=sync-error", requestUrl.origin));
+    return applyCookies(NextResponse.redirect(new URL("/?auth=sync-error", requestUrl.origin)));
   }
 
   return applyCookies(NextResponse.redirect(new URL(nextPath, requestUrl.origin)));

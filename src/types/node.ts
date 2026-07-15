@@ -15,6 +15,6 @@ export type SkillMapNode = {
 export type GeneratedSkillMapNode = {
   title: string;
   description: string;
-  tags?: string[];
-  children?: GeneratedSkillMapNode[];
+  tags: string[];
+  children: GeneratedSkillMapNode[];
 };

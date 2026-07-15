@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const nextPath = getSafeNextPath(requestUrl.searchParams.get("next"));
-  const { supabase } = await createSupabaseRouteHandlerClient();
-  const redirectTo = getCallbackUrl(nextPath);
+  const { supabase, applyCookies } = await createSupabaseRouteHandlerClient();
+  const redirectTo = getCallbackUrl(requestUrl.origin, nextPath);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -19,10 +19,10 @@ export async function GET(request: Request) {
 
   if (error || !data.url) {
     logSafeAuthError("OAuth sign-in URL creation failed", error);
-    return NextResponse.redirect(new URL("/?auth=login-error", requestUrl.origin));
+    return applyCookies(NextResponse.redirect(new URL("/?auth=login-error", requestUrl.origin)));
   }
 
-  return NextResponse.redirect(data.url);
+  return applyCookies(NextResponse.redirect(data.url));
 }
 
 function getSafeNextPath(value: string | null) {
@@ -33,8 +33,8 @@ function getSafeNextPath(value: string | null) {
   return value;
 }
 
-function getCallbackUrl(nextPath: string) {
-  const callbackUrl = new URL("http://localhost:3000/auth/callback");
+function getCallbackUrl(origin: string, nextPath: string) {
+  const callbackUrl = new URL("/auth/callback", origin);
   callbackUrl.searchParams.set("next", nextPath);
 
   return callbackUrl.toString();

@@ -1,8 +1,6 @@
-import { ArrowRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-
-const examples = ["Linux スキルマップ", "AWS SAA", "高校世界史", "高校数学Ⅰ", "Python 初学者"];
+import { SkillMapExampleList, SkillMapGenerator } from "@/components/skillmap/skill-map-generator";
 
 export default function Home() {
   return (
@@ -19,39 +17,16 @@ export default function Home() {
                 SkillMap AI
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-                テーマを入力すると、AIが学習ロードマップをJSONで生成し、React Flowのマップとして学習を始められるようにします。
+                テーマを入力すると、AIが学習ロードマップをJSONで生成します。Day3では生成結果を画面上で確認できます。
               </p>
             </div>
 
-            <form className="rounded-lg border bg-card p-4 shadow-sm sm:p-5">
-              <label className="mb-2 block text-sm font-medium" htmlFor="topic">
-                テーマを入力してください
-              </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  id="topic"
-                  name="topic"
-                  placeholder="Linux スキルマップ"
-                  type="text"
-                />
-                <Button className="h-11 gap-2" type="submit">
-                  生成する
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </div>
-            </form>
+            <SkillMapGenerator initialSavedSkillMaps={[]} />
           </div>
 
-          <aside className="rounded-lg border bg-card p-5">
+          <aside className="hidden rounded-lg border bg-card p-5 lg:block">
             <h2 className="mb-4 text-sm font-semibold">入力例</h2>
-            <div className="grid gap-2">
-              {examples.map((example) => (
-                <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground" key={example}>
-                  {example}
-                </div>
-              ))}
-            </div>
+            <SkillMapExampleList />
           </aside>
         </div>
       </section>

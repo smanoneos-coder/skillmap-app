@@ -1,16 +1,16 @@
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
 
+import { SkillMapExampleList, SkillMapGenerator } from "@/components/skillmap/skill-map-generator";
 import { Button } from "@/components/ui/button";
-import { getAuthenticatedUser } from "@/lib/auth";
+import { getAuthenticatedUserForPage } from "@/lib/auth";
+import { listSavedSkillMaps } from "@/lib/skillmap-repository";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const examples = ["Linux スキルマップ", "AWS SAA", "高校世界史", "高校数学Ⅰ", "Python 初学者"];
-
 export default async function SkillMapsPage() {
-  const user = await getAuthenticatedUser();
+  const user = await getAuthenticatedUserForPage();
 
   if (!user) {
     return (
@@ -27,6 +27,8 @@ export default async function SkillMapsPage() {
       </main>
     );
   }
+
+  const savedSkillMaps = await listSavedSkillMaps(user.id);
 
   return (
     <main className="min-h-screen bg-background px-6 py-10">
@@ -54,45 +56,18 @@ export default async function SkillMapsPage() {
                 テーマからスキルマップを生成
               </h2>
               <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                学びたいテーマを入力してください。次のステップでAI生成APIにつなぎ、生成結果を保存できるようにします。
+                学びたいテーマを入力してください。生成したスキルマップは保存して、あとから再表示できます。
               </p>
             </div>
 
-            <form className="rounded-lg border bg-card p-4 shadow-sm sm:p-5">
-              <label className="mb-2 block text-sm font-medium" htmlFor="topic">
-                テーマを入力してください
-              </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  id="topic"
-                  name="topic"
-                  placeholder="Linux スキルマップ"
-                  type="text"
-                />
-                <Button className="h-11 gap-2" type="submit">
-                  生成する
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </div>
-            </form>
+            <SkillMapGenerator initialSavedSkillMaps={savedSkillMaps} />
           </div>
 
-          <aside className="rounded-lg border bg-card p-5">
+          <aside className="hidden rounded-lg border bg-card p-5 lg:block">
             <h2 className="mb-4 text-sm font-semibold">入力例</h2>
-            <div className="grid gap-2">
-              {examples.map((example) => (
-                <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground" key={example}>
-                  {example}
-                </div>
-              ))}
-            </div>
+            <SkillMapExampleList />
           </aside>
         </section>
-
-        <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
-          生成済みマップはここに表示されます。
-        </div>
       </div>
     </main>
   );

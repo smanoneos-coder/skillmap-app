@@ -1,22 +1,48 @@
 import { NextResponse } from "next/server";
 
-import { getAuthenticatedUser } from "@/lib/auth";
+import { AuthServiceError, getAuthenticatedUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getAuthenticatedUser();
+  try {
+    const user = await getAuthenticatedUser();
 
-  return NextResponse.json({
-    authenticated: Boolean(user),
-    user: user
-      ? {
-          id: maskUuid(user.id),
-          email: maskEmail(user.email),
-        }
-      : null,
-  });
+    return NextResponse.json({
+      authenticated: Boolean(user),
+      user: user
+        ? {
+            id: maskUuid(user.id),
+            email: maskEmail(user.email),
+          }
+        : null,
+    });
+  } catch (error) {
+    if (error instanceof AuthServiceError) {
+      return NextResponse.json(
+        {
+          authenticated: false,
+          error: {
+            code: "AUTH_SERVICE_UNAVAILABLE",
+            message: "Authentication service is unavailable.",
+          },
+        },
+        { status: 503 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        authenticated: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Unexpected server error.",
+        },
+      },
+      { status: 500 },
+    );
+  }
 }
 
 function maskUuid(value: string) {

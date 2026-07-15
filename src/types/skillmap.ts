@@ -10,3 +10,19 @@ export type SkillMap = {
 };
 
 export type GeneratedSkillMap = GeneratedSkillMapNode;
+
+export type SavedSkillMapSummary = {
+  id: string;
+  title: string;
+  prompt: string;
+  createdAt: string;
+  nodeCount: number;
+};
+
+export type SavedSkillMapDetail = {
+  id: string;
+  title: string;
+  prompt: string;
+  createdAt: string;
+  skillMap: GeneratedSkillMap;
+};
