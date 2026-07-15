@@ -18,3 +18,12 @@ export type GeneratedSkillMapNode = {
   tags: string[];
   children: GeneratedSkillMapNode[];
 };
+
+export type StudySkillMapNode = {
+  nodeId: string | null;
+  title: string;
+  description: string;
+  tags: string[];
+  progressStatus: ProgressStatus;
+  children: StudySkillMapNode[];
+};

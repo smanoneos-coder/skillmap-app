@@ -3,13 +3,14 @@
 import { ArrowRight, Loader2 } from "lucide-react";
 import { FormEvent, useState } from "react";
 
+import { SkillMapLearningView } from "@/components/skillmap/skill-map-learning-view";
 import { Button } from "@/components/ui/button";
-import { SkillMapFlowViewer } from "@/components/skillmap/skill-map-flow-viewer";
-import type { GeneratedSkillMap, GenerateSkillMapResponse } from "@/lib/skillmap-schema";
+import { createStudySkillMap } from "@/lib/skillmap-progress";
+import type { GenerateSkillMapResponse } from "@/lib/skillmap-schema";
+import type { StudySkillMapNode } from "@/types/node";
 import type { SavedSkillMapDetail, SavedSkillMapSummary } from "@/types/skillmap";
 
 type GeneratorMode = "mock" | "openai";
-type ResultView = "map" | "json";
 
 type ApiErrorResponse = {
   error?: {
@@ -38,9 +39,8 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [skillMap, setSkillMap] = useState<GeneratedSkillMap | null>(null);
+  const [skillMap, setSkillMap] = useState<StudySkillMapNode | null>(null);
   const [generatorMode, setGeneratorMode] = useState<GeneratorMode | null>(null);
-  const [resultView, setResultView] = useState<ResultView>("map");
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [savedSkillMapId, setSavedSkillMapId] = useState<string | null>(null);
   const [loadingSkillMapId, setLoadingSkillMapId] = useState<string | null>(null);
@@ -88,8 +88,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
       const responseMode = response.headers.get("x-skillmap-generator-mode");
 
       setGeneratorMode(responseMode === "openai" ? "openai" : "mock");
-      setSkillMap(parsedPayload.data);
-      setResultView("map");
+      setSkillMap(createStudySkillMap(parsedPayload.data));
       setGeneratedPrompt(trimmedTheme);
       setSavedSkillMapId(null);
     } catch {
@@ -163,7 +162,6 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
       setSkillMap(parsedPayload.data.skillMap);
       setSavedSkillMapId(parsedPayload.data.id);
       setGeneratorMode(null);
-      setResultView("map");
       setSaveMessage("保存済みマップを読み込みました。");
     } catch {
       setErrorMessage("保存済みマップの読み込みに失敗しました。");
@@ -252,30 +250,6 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
                   </span>
                 ) : null}
               </div>
-              <div className="flex rounded-md border bg-background p-1">
-                <button
-                  className={`rounded px-3 py-1 text-sm transition-colors ${
-                    resultView === "map"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => setResultView("map")}
-                  type="button"
-                >
-                  マップ
-                </button>
-                <button
-                  className={`rounded px-3 py-1 text-sm transition-colors ${
-                    resultView === "json"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => setResultView("json")}
-                  type="button"
-                >
-                  JSON
-                </button>
-              </div>
             </div>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <Button disabled={isSaving || savedSkillMapId !== null} onClick={handleSave} type="button">
@@ -283,13 +257,11 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
               </Button>
               {saveMessage ? <p className="text-sm text-muted-foreground">{saveMessage}</p> : null}
             </div>
-            {resultView === "map" ? (
-              <SkillMapFlowViewer skillMap={skillMap} />
-            ) : (
-              <pre className="max-h-[560px] overflow-auto rounded-md bg-muted p-4 text-xs leading-5">
-                {JSON.stringify(skillMap, null, 2)}
-              </pre>
-            )}
+            <SkillMapLearningView
+              mapKey={savedSkillMapId ?? generatedPrompt}
+              onChangeSkillMap={setSkillMap}
+              skillMap={skillMap}
+            />
           </div>
         </section>
       ) : (

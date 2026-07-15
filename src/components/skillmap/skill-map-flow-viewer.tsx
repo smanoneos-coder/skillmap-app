@@ -3,14 +3,15 @@
 import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import { useMemo } from "react";
 
-import { createSkillMapFlowElements } from "@/lib/skillmap-flow";
-import type { GeneratedSkillMap } from "@/lib/skillmap-schema";
+import { createSkillMapFlowElements, type SkillMapFlowNode } from "@/lib/skillmap-flow";
+import type { StudySkillMapNode } from "@/types/node";
 
 type SkillMapFlowViewerProps = {
-  skillMap: GeneratedSkillMap;
+  onSelectNode: (node: StudySkillMapNode) => void;
+  skillMap: StudySkillMapNode;
 };
 
-export function SkillMapFlowViewer({ skillMap }: SkillMapFlowViewerProps) {
+export function SkillMapFlowViewer({ onSelectNode, skillMap }: SkillMapFlowViewerProps) {
   const { nodes, edges } = useMemo(() => createSkillMapFlowElements(skillMap), [skillMap]);
 
   return (
@@ -27,6 +28,7 @@ export function SkillMapFlowViewer({ skillMap }: SkillMapFlowViewerProps) {
         nodes={nodes}
         nodesDraggable={false}
         nodesConnectable={false}
+        onNodeClick={(_, node: SkillMapFlowNode) => onSelectNode(node.data.skillMapNode)}
         panOnDrag
         proOptions={{
           hideAttribution: true,

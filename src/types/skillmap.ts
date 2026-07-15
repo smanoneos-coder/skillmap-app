@@ -1,4 +1,4 @@
-import type { GeneratedSkillMapNode, SkillMapNode } from "@/types/node";
+import type { GeneratedSkillMapNode, SkillMapNode, StudySkillMapNode } from "@/types/node";
 
 export type SkillMap = {
   id: string;
@@ -24,5 +24,5 @@ export type SavedSkillMapDetail = {
   title: string;
   prompt: string;
   createdAt: string;
-  skillMap: GeneratedSkillMap;
+  skillMap: StudySkillMapNode;
 };

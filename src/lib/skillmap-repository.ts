@@ -1,7 +1,8 @@
-import { Prisma, type Node as PrismaNode } from "@prisma/client";
+import { Prisma, type Node as PrismaNode, type ProgressStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import type { GeneratedSkillMap } from "@/lib/skillmap-schema";
+import type { StudySkillMapNode } from "@/types/node";
 import type { SavedSkillMapDetail, SavedSkillMapSummary } from "@/types/skillmap";
 
 type SaveSkillMapInput = {
@@ -83,6 +84,13 @@ export async function getSavedSkillMapDetail(
     include: {
       nodes: {
         orderBy: [{ parentId: "asc" }, { order: "asc" }],
+        include: {
+          progresses: {
+            where: {
+              userId,
+            },
+          },
+        },
       },
     },
   });
@@ -98,6 +106,50 @@ export async function getSavedSkillMapDetail(
     createdAt: skillMap.createdAt.toISOString(),
     skillMap: buildSkillMapTree(skillMap.nodes),
   };
+}
+
+export async function updateNodeProgress(input: {
+  userId: string;
+  nodeId: string;
+  status: ProgressStatus;
+}) {
+  const node = await prisma.node.findFirst({
+    where: {
+      id: input.nodeId,
+      skillMap: {
+        userId: input.userId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!node) {
+    return null;
+  }
+
+  return prisma.userNodeProgress.upsert({
+    where: {
+      userId_nodeId: {
+        userId: input.userId,
+        nodeId: input.nodeId,
+      },
+    },
+    update: {
+      status: input.status,
+    },
+    create: {
+      userId: input.userId,
+      nodeId: input.nodeId,
+      status: input.status,
+    },
+    select: {
+      nodeId: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
 }
 
 async function createNodeTree(
@@ -130,7 +182,13 @@ async function createNodeTree(
   }
 }
 
-function buildSkillMapTree(nodes: PrismaNode[]): GeneratedSkillMap {
+type PrismaNodeWithProgress = PrismaNode & {
+  progresses: {
+    status: ProgressStatus;
+  }[];
+};
+
+function buildSkillMapTree(nodes: PrismaNodeWithProgress[]): StudySkillMapNode {
   const rootNode = nodes.find((node) => node.parentId === null);
 
   if (!rootNode) {
@@ -140,16 +198,18 @@ function buildSkillMapTree(nodes: PrismaNode[]): GeneratedSkillMap {
   return buildNode(rootNode, nodes);
 }
 
-function buildNode(node: PrismaNode, allNodes: PrismaNode[]): GeneratedSkillMap {
+function buildNode(node: PrismaNodeWithProgress, allNodes: PrismaNodeWithProgress[]): StudySkillMapNode {
   const children = allNodes
     .filter((candidate) => candidate.parentId === node.id)
     .sort((left, right) => left.order - right.order)
     .map((child) => buildNode(child, allNodes));
 
   return {
+    nodeId: node.id,
     title: node.title,
     description: node.description,
     tags: parseTags(node.tags),
+    progressStatus: node.progresses[0]?.status ?? "NOT_STARTED",
     children,
   };
 }

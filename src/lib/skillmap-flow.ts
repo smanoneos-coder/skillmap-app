@@ -1,12 +1,13 @@
 import { Position, type Edge, type Node } from "@xyflow/react";
 
-import type { GeneratedSkillMap } from "@/lib/skillmap-schema";
+import type { StudySkillMapNode } from "@/types/node";
 
 export type SkillMapFlowNodeData = {
   label: string;
   description: string;
   tags: string[];
   depth: number;
+  skillMapNode: StudySkillMapNode;
 };
 
 export type SkillMapFlowNode = Node<SkillMapFlowNodeData>;
@@ -20,13 +21,13 @@ const NODE_WIDTH = 220;
 const HORIZONTAL_GAP = 280;
 const VERTICAL_GAP = 96;
 
-export function createSkillMapFlowElements(skillMap: GeneratedSkillMap): SkillMapFlowElements {
+export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMapFlowElements {
   const nodes: SkillMapFlowNode[] = [];
   const edges: Edge[] = [];
   let nextRow = 0;
 
   function visit(
-    node: GeneratedSkillMap,
+    node: StudySkillMapNode,
     depth: number,
     parentId: string | null,
     indexPath: string,
@@ -53,14 +54,15 @@ export function createSkillMapFlowElements(skillMap: GeneratedSkillMap): SkillMa
         description: node.description,
         tags: node.tags,
         depth,
+        skillMapNode: node,
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style: {
         width: NODE_WIDTH,
         borderRadius: 8,
-        borderColor: "hsl(var(--border))",
-        background: "hsl(var(--card))",
+        borderColor: getNodeBorderColor(node.progressStatus),
+        background: getNodeBackground(node.progressStatus),
         color: "hsl(var(--card-foreground))",
         boxShadow: "0 1px 2px rgb(15 23 42 / 0.08)",
         fontSize: 13,
@@ -92,4 +94,28 @@ export function createSkillMapFlowElements(skillMap: GeneratedSkillMap): SkillMa
     nodes,
     edges,
   };
+}
+
+function getNodeBorderColor(status: StudySkillMapNode["progressStatus"]) {
+  if (status === "COMPLETED") {
+    return "hsl(var(--accent))";
+  }
+
+  if (status === "LEARNING") {
+    return "hsl(var(--primary))";
+  }
+
+  return "hsl(var(--border))";
+}
+
+function getNodeBackground(status: StudySkillMapNode["progressStatus"]) {
+  if (status === "COMPLETED") {
+    return "hsl(var(--accent) / 0.12)";
+  }
+
+  if (status === "LEARNING") {
+    return "hsl(var(--primary) / 0.12)";
+  }
+
+  return "hsl(var(--card))";
 }
