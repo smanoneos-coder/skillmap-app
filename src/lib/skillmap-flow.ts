@@ -1,5 +1,6 @@
 import { Position, type Edge, type Node } from "@xyflow/react";
 
+import { getSkillMapNodePath } from "@/lib/skillmap-search";
 import type { StudySkillMapNode } from "@/types/node";
 
 export type SkillMapFlowNodeData = {
@@ -7,6 +8,8 @@ export type SkillMapFlowNodeData = {
   description: string;
   tags: string[];
   depth: number;
+  isActiveSearchMatch: boolean;
+  isSearchMatch: boolean;
   skillMapNode: StudySkillMapNode;
 };
 
@@ -21,7 +24,13 @@ const NODE_WIDTH = 220;
 const HORIZONTAL_GAP = 280;
 const VERTICAL_GAP = 96;
 
-export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMapFlowElements {
+export function createSkillMapFlowElements(
+  skillMap: StudySkillMapNode,
+  options: {
+    activeSearchPath?: string | null;
+    searchMatchPaths?: Set<string>;
+  } = {},
+): SkillMapFlowElements {
   const nodes: SkillMapFlowNode[] = [];
   const edges: Edge[] = [];
   let nextRow = 0;
@@ -32,10 +41,12 @@ export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMa
     parentId: string | null,
     indexPath: string,
   ): number {
-    const currentId = `node-${indexPath}`;
+    const currentId = getFlowNodeId(indexPath);
     const childYPositions = node.children.map((child, index) =>
-      visit(child, depth + 1, currentId, `${indexPath}-${index + 1}`),
+      visit(child, depth + 1, currentId, getSkillMapNodePath(indexPath, index)),
     );
+    const isSearchMatch = options.searchMatchPaths?.has(indexPath) ?? false;
+    const isActiveSearchMatch = options.activeSearchPath === indexPath;
 
     const y =
       childYPositions.length > 0
@@ -54,6 +65,8 @@ export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMa
         description: node.description,
         tags: node.tags,
         depth,
+        isActiveSearchMatch,
+        isSearchMatch,
         skillMapNode: node,
       },
       sourcePosition: Position.Right,
@@ -61,8 +74,16 @@ export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMa
       style: {
         width: NODE_WIDTH,
         borderRadius: 8,
-        borderColor: getNodeBorderColor(node.progressStatus),
-        background: getNodeBackground(node.progressStatus),
+        borderColor: isActiveSearchMatch
+          ? "hsl(var(--destructive))"
+          : isSearchMatch
+            ? "hsl(var(--primary))"
+            : getNodeBorderColor(node.progressStatus),
+        background: isActiveSearchMatch
+          ? "hsl(var(--destructive) / 0.12)"
+          : isSearchMatch
+            ? "hsl(var(--primary) / 0.16)"
+            : getNodeBackground(node.progressStatus),
         color: "hsl(var(--card-foreground))",
         boxShadow: "0 1px 2px rgb(15 23 42 / 0.08)",
         fontSize: 13,
@@ -94,6 +115,10 @@ export function createSkillMapFlowElements(skillMap: StudySkillMapNode): SkillMa
     nodes,
     edges,
   };
+}
+
+export function getFlowNodeId(path: string) {
+  return `node-${path}`;
 }
 
 function getNodeBorderColor(status: StudySkillMapNode["progressStatus"]) {

@@ -1,18 +1,77 @@
 "use client";
 
-import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
-import { useMemo } from "react";
+import {
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+} from "@xyflow/react";
+import { useEffect, useMemo } from "react";
 
-import { createSkillMapFlowElements, type SkillMapFlowNode } from "@/lib/skillmap-flow";
+import {
+  createSkillMapFlowElements,
+  getFlowNodeId,
+  type SkillMapFlowNode,
+} from "@/lib/skillmap-flow";
 import type { StudySkillMapNode } from "@/types/node";
 
 type SkillMapFlowViewerProps = {
+  activeSearchPath: string | null;
   onSelectNode: (node: StudySkillMapNode) => void;
+  searchMatchPaths: Set<string>;
   skillMap: StudySkillMapNode;
 };
 
-export function SkillMapFlowViewer({ onSelectNode, skillMap }: SkillMapFlowViewerProps) {
-  const { nodes, edges } = useMemo(() => createSkillMapFlowElements(skillMap), [skillMap]);
+export function SkillMapFlowViewer({
+  activeSearchPath,
+  onSelectNode,
+  searchMatchPaths,
+  skillMap,
+}: SkillMapFlowViewerProps) {
+  return (
+    <ReactFlowProvider>
+      <SkillMapFlowCanvas
+        activeSearchPath={activeSearchPath}
+        onSelectNode={onSelectNode}
+        searchMatchPaths={searchMatchPaths}
+        skillMap={skillMap}
+      />
+    </ReactFlowProvider>
+  );
+}
+
+function SkillMapFlowCanvas({
+  activeSearchPath,
+  onSelectNode,
+  searchMatchPaths,
+  skillMap,
+}: SkillMapFlowViewerProps) {
+  const { fitView } = useReactFlow();
+  const { nodes, edges } = useMemo(
+    () =>
+      createSkillMapFlowElements(skillMap, {
+        activeSearchPath,
+        searchMatchPaths,
+      }),
+    [activeSearchPath, searchMatchPaths, skillMap],
+  );
+
+  useEffect(() => {
+    if (!activeSearchPath) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      fitView({
+        duration: 450,
+        maxZoom: 1.2,
+        nodes: [{ id: getFlowNodeId(activeSearchPath) }],
+        padding: 0.4,
+      });
+    });
+  }, [activeSearchPath, fitView]);
 
   return (
     <div className="h-[560px] min-h-[420px] overflow-hidden rounded-lg border bg-background">

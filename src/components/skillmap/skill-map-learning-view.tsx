@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SkillMapDetailDrawer } from "@/components/skillmap/skill-map-detail-drawer";
 import { SkillMapFlowViewer } from "@/components/skillmap/skill-map-flow-viewer";
@@ -9,6 +10,7 @@ import {
   getSkillMapProgressStats,
   updateStudySkillMapNodeStatus,
 } from "@/lib/skillmap-progress";
+import { searchSkillMap } from "@/lib/skillmap-search";
 import type { ProgressStatus } from "@/types/progress";
 import type { StudySkillMapNode } from "@/types/node";
 
@@ -24,13 +26,27 @@ export function SkillMapLearningView({ mapKey, onChangeSkillMap, skillMap }: Ski
   const [viewMode, setViewMode] = useState<SkillMapViewMode>("map");
   const [selectedNode, setSelectedNode] = useState<StudySkillMapNode | null>(null);
   const [progressError, setProgressError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [updatingNodeId, setUpdatingNodeId] = useState<string | null>(null);
   const progressStats = getSkillMapProgressStats(skillMap);
+  const searchResults = useMemo(() => searchSkillMap(skillMap, query), [query, skillMap]);
+  const searchMatchPaths = useMemo(
+    () => new Set(searchResults.map((result) => result.path)),
+    [searchResults],
+  );
+  const activeSearchPath = searchResults[activeSearchIndex]?.path ?? null;
 
   useEffect(() => {
     setSelectedNode(null);
     setProgressError(null);
+    setQuery("");
+    setActiveSearchIndex(0);
   }, [mapKey]);
+
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [query]);
 
   async function handleUpdateProgress(nodeId: string, status: ProgressStatus) {
     setUpdatingNodeId(nodeId);
@@ -68,6 +84,20 @@ export function SkillMapLearningView({ mapKey, onChangeSkillMap, skillMap }: Ski
     }
   }
 
+  function moveSearchResult(direction: "next" | "previous") {
+    if (searchResults.length === 0) {
+      return;
+    }
+
+    setActiveSearchIndex((currentIndex) => {
+      if (direction === "next") {
+        return (currentIndex + 1) % searchResults.length;
+      }
+
+      return (currentIndex - 1 + searchResults.length) % searchResults.length;
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -85,6 +115,47 @@ export function SkillMapLearningView({ mapKey, onChangeSkillMap, skillMap }: Ski
             </p>
           </div>
           {progressError ? <p className="text-sm text-destructive">{progressError}</p> : null}
+        </div>
+        <div className="flex w-full flex-col gap-2 rounded-lg border bg-background p-3 lg:max-w-md">
+          <label className="flex items-center gap-2 text-sm font-medium" htmlFor="skillmap-search">
+            <Search aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+            マップ内検索
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              id="skillmap-search"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="タイトル・説明を検索"
+              type="search"
+              value={query}
+            />
+            <div className="flex gap-2">
+              <button
+                className="h-10 rounded-md border px-3 text-sm disabled:opacity-50"
+                disabled={searchResults.length === 0}
+                onClick={() => moveSearchResult("previous")}
+                type="button"
+              >
+                前へ
+              </button>
+              <button
+                className="h-10 rounded-md border px-3 text-sm disabled:opacity-50"
+                disabled={searchResults.length === 0}
+                onClick={() => moveSearchResult("next")}
+                type="button"
+              >
+                次へ
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {query.trim()
+              ? searchResults.length > 0
+                ? `${activeSearchIndex + 1}/${searchResults.length}件`
+                : "一致するノードはありません"
+              : "検索文字列が空の場合は通常表示です"}
+          </p>
         </div>
         <div className="flex rounded-md border bg-background p-1">
           <button
@@ -109,9 +180,19 @@ export function SkillMapLearningView({ mapKey, onChangeSkillMap, skillMap }: Ski
       </div>
 
       {viewMode === "map" ? (
-        <SkillMapFlowViewer onSelectNode={setSelectedNode} skillMap={skillMap} />
+        <SkillMapFlowViewer
+          activeSearchPath={activeSearchPath}
+          onSelectNode={setSelectedNode}
+          searchMatchPaths={searchMatchPaths}
+          skillMap={skillMap}
+        />
       ) : (
-        <SkillMapListViewer onSelectNode={setSelectedNode} skillMap={skillMap} />
+        <SkillMapListViewer
+          activeSearchPath={activeSearchPath}
+          onSelectNode={setSelectedNode}
+          searchMatchPaths={searchMatchPaths}
+          skillMap={skillMap}
+        />
       )}
 
       <SkillMapDetailDrawer
