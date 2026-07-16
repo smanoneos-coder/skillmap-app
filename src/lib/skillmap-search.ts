@@ -6,7 +6,7 @@ export type SkillMapSearchResult = {
 };
 
 export function getSkillMapNodePath(parentPath: string, index: number) {
-  return parentPath ? `${parentPath}-${index + 1}` : "1";
+  return parentPath ? `${parentPath}-${index + 1}` : `${index + 1}`;
 }
 
 export function searchSkillMap(skillMap: StudySkillMapNode, query: string): SkillMapSearchResult[] {
@@ -35,7 +35,9 @@ export function searchSkillMap(skillMap: StudySkillMapNode, query: string): Skil
     });
   }
 
-  visit(skillMap, "1");
+  skillMap.children.forEach((child, index) => {
+    visit(child, getSkillMapNodePath("", index));
+  });
 
   return results;
 }
@@ -43,11 +45,15 @@ export function searchSkillMap(skillMap: StudySkillMapNode, query: string): Skil
 export function getSkillMapNodeByPath(skillMap: StudySkillMapNode, path: string) {
   const indexes = path.split("-").map((value) => Number(value) - 1);
 
-  if (indexes[0] !== 0) {
+  if (indexes.some((index) => !Number.isInteger(index) || index < 0)) {
     return null;
   }
 
-  let currentNode = skillMap;
+  let currentNode = skillMap.children[indexes[0]];
+
+  if (!currentNode) {
+    return null;
+  }
 
   for (const index of indexes.slice(1)) {
     const nextNode = currentNode.children[index];

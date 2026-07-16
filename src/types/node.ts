@@ -8,6 +8,8 @@ export type SkillMapNode = {
   description: string;
   order: number;
   tags: string[];
+  positionX: number | null;
+  positionY: number | null;
   status?: ProgressStatus;
   children?: SkillMapNode[];
 };
@@ -25,5 +27,7 @@ export type StudySkillMapNode = {
   description: string;
   tags: string[];
   progressStatus: ProgressStatus;
+  positionX: number | null;
+  positionY: number | null;
   children: StudySkillMapNode[];
 };

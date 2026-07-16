@@ -31,6 +31,7 @@ model SkillMap {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   nodes Node[]
+  edges SkillMapEdge[]
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -45,16 +46,38 @@ model Node {
   description String  @db.Text
   order       Int     @map("sort_order")
   tags        Json    @default("[]")
+  positionX   Float?  @map("position_x")
+  positionY   Float?  @map("position_y")
 
   skillMap   SkillMap           @relation(fields: [skillMapId], references: [id], onDelete: Cascade)
   parent     Node?              @relation("NodeToNode", fields: [parentId], references: [id], onDelete: Cascade)
   children   Node[]             @relation("NodeToNode")
   progresses UserNodeProgress[]
+  edgeAsNodeA SkillMapEdge[]    @relation("SkillMapEdgeNodeA")
+  edgeAsNodeB SkillMapEdge[]    @relation("SkillMapEdgeNodeB")
 
   @@index([skillMapId])
   @@index([parentId])
   @@index([skillMapId, parentId, order])
   @@map("nodes")
+}
+
+model SkillMapEdge {
+  id         String   @id @default(uuid()) @db.Uuid
+  skillMapId String   @db.Uuid
+  nodeAId    String   @db.Uuid
+  nodeBId    String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  skillMap SkillMap @relation(fields: [skillMapId], references: [id], onDelete: Cascade)
+  nodeA    Node     @relation("SkillMapEdgeNodeA", fields: [nodeAId], references: [id], onDelete: Cascade)
+  nodeB    Node     @relation("SkillMapEdgeNodeB", fields: [nodeBId], references: [id], onDelete: Cascade)
+
+  @@unique([skillMapId, nodeAId, nodeBId])
+  @@index([skillMapId])
+  @@index([nodeAId])
+  @@index([nodeBId])
+  @@map("skill_map_edges")
 }
 
 model UserNodeProgress {

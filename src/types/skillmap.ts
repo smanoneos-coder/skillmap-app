@@ -25,4 +25,11 @@ export type SavedSkillMapDetail = {
   prompt: string;
   createdAt: string;
   skillMap: StudySkillMapNode;
+  relatedEdges: StudySkillMapEdge[];
+};
+
+export type StudySkillMapEdge = {
+  id: string;
+  nodeAId: string;
+  nodeBId: string;
 };

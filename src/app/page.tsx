@@ -5,7 +5,7 @@ import { SkillMapExampleList, SkillMapGenerator } from "@/components/skillmap/sk
 export default function Home() {
   return (
     <main className="min-h-screen bg-background">
-      <section className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-12">
+      <section className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-center">
           <div className="space-y-8">
             <div className="space-y-4">
@@ -17,7 +17,7 @@ export default function Home() {
                 SkillMap AI
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-                テーマを入力すると、AIが学習ロードマップをJSONで生成します。Day3では生成結果を画面上で確認できます。
+                テーマを入力すると、AIが学習ロードマップを生成します。保存、検索、学習状態の管理までこの画面から試せます。
               </p>
             </div>
 

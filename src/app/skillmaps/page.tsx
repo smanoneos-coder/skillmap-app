@@ -31,12 +31,12 @@ export default async function SkillMapsPage() {
   const savedSkillMaps = await listSavedSkillMaps(user.id);
 
   return (
-    <main className="min-h-screen bg-background px-6 py-10">
+    <main className="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-5xl space-y-10">
-        <header className="flex items-center justify-between gap-4">
-          <div>
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold">マイマップ</h1>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <p className="break-words text-sm text-muted-foreground">{user.email}</p>
           </div>
           <form action="/auth/logout" method="post">
             <Button type="submit" variant="outline">

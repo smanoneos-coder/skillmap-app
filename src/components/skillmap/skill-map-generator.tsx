@@ -1,14 +1,14 @@
 "use client";
 
-import { ArrowRight, Loader2 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
 
 import { SkillMapLearningView } from "@/components/skillmap/skill-map-learning-view";
 import { Button } from "@/components/ui/button";
 import { createStudySkillMap } from "@/lib/skillmap-progress";
-import type { GenerateSkillMapResponse } from "@/lib/skillmap-schema";
+import type { GenerateSkillMapResponse, GeneratedSkillMap } from "@/lib/skillmap-schema";
 import type { StudySkillMapNode } from "@/types/node";
-import type { SavedSkillMapDetail, SavedSkillMapSummary } from "@/types/skillmap";
+import type { SavedSkillMapDetail, SavedSkillMapSummary, StudySkillMapEdge } from "@/types/skillmap";
 
 type GeneratorMode = "mock" | "openai";
 
@@ -27,11 +27,16 @@ type LoadSkillMapResponse = {
   data: SavedSkillMapDetail;
 };
 
+type ListSkillMapsResponse = {
+  data: SavedSkillMapSummary[];
+};
+
 type SkillMapGeneratorProps = {
   initialSavedSkillMaps: SavedSkillMapSummary[];
 };
 
 const EXAMPLES = ["Linux スキルマップ", "AWS SAA", "高校世界史", "高校数学I", "Python 初学者"];
+const LAST_OPENED_SKILL_MAP_ID_KEY = "skillmap:last-opened-id";
 
 export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorProps) {
   const [theme, setTheme] = useState("");
@@ -40,12 +45,79 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [skillMap, setSkillMap] = useState<StudySkillMapNode | null>(null);
+  const [relatedEdges, setRelatedEdges] = useState<StudySkillMapEdge[]>([]);
   const [generatorMode, setGeneratorMode] = useState<GeneratorMode | null>(null);
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [savedSkillMapId, setSavedSkillMapId] = useState<string | null>(null);
   const [loadingSkillMapId, setLoadingSkillMapId] = useState<string | null>(null);
   const [savedSkillMaps, setSavedSkillMaps] =
     useState<SavedSkillMapSummary[]>(initialSavedSkillMaps);
+  const [hasRestoredInitialMap, setHasRestoredInitialMap] = useState(false);
+  const isBusy = isGenerating || isSaving || loadingSkillMapId !== null;
+  const hasSavedCurrentMap = savedSkillMapId !== null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshSavedSkillMaps() {
+      try {
+        const response = await fetch("/api/skillmaps", {
+          cache: "no-store",
+        });
+        const payload: unknown = await response.json();
+
+        if (!response.ok || !isListSkillMapsResponse(payload) || !isMounted) {
+          return;
+        }
+
+        setSavedSkillMaps(payload.data);
+      } catch {
+        // Keep the server-rendered list if the client refresh fails.
+      }
+    }
+
+    void refreshSavedSkillMaps();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasRestoredInitialMap || skillMap || savedSkillMaps.length === 0) {
+      return;
+    }
+
+    const lastOpenedSkillMapId = window.localStorage.getItem(LAST_OPENED_SKILL_MAP_ID_KEY);
+    const targetSkillMap =
+      savedSkillMaps.find((savedSkillMap) => savedSkillMap.id === lastOpenedSkillMapId) ??
+      savedSkillMaps[0];
+
+    setHasRestoredInitialMap(true);
+    void handleLoad(targetSkillMap.id);
+    // Initial restore is guarded by hasRestoredInitialMap; handleLoad intentionally stays out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRestoredInitialMap, savedSkillMaps, skillMap]);
+
+  function handleChangeSkillMap(nextSkillMap: StudySkillMapNode) {
+    setSkillMap(nextSkillMap);
+
+    if (!savedSkillMapId) {
+      return;
+    }
+
+    setSavedSkillMaps((current) =>
+      current.map((savedSkillMap) =>
+        savedSkillMap.id === savedSkillMapId
+          ? {
+              ...savedSkillMap,
+              title: nextSkillMap.title,
+              nodeCount: countSkillMapNodes(nextSkillMap),
+            }
+          : savedSkillMap,
+      ),
+    );
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,6 +161,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
 
       setGeneratorMode(responseMode === "openai" ? "openai" : "mock");
       setSkillMap(createStudySkillMap(parsedPayload.data));
+      setRelatedEdges([]);
       setGeneratedPrompt(trimmedTheme);
       setSavedSkillMapId(null);
     } catch {
@@ -115,7 +188,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
         },
         body: JSON.stringify({
           prompt: generatedPrompt,
-          data: skillMap,
+          data: toGeneratedSkillMapForSave(skillMap),
         }),
       });
 
@@ -129,11 +202,12 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
       const parsedPayload = payload as SaveSkillMapResponse;
 
       setSavedSkillMapId(parsedPayload.data.id);
+      window.localStorage.setItem(LAST_OPENED_SKILL_MAP_ID_KEY, parsedPayload.data.id);
       setSavedSkillMaps((current) => [
         parsedPayload.data,
         ...current.filter((savedSkillMap) => savedSkillMap.id !== parsedPayload.data.id),
       ]);
-      setSaveMessage("保存しました。");
+      await loadSavedSkillMap(parsedPayload.data.id, "保存しました。");
     } catch {
       setErrorMessage("保存に失敗しました。時間をおいて再試行してください。");
     } finally {
@@ -142,6 +216,10 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
   }
 
   async function handleLoad(savedSkillMapIdToLoad: string) {
+    await loadSavedSkillMap(savedSkillMapIdToLoad, "保存済みマップを読み込みました。");
+  }
+
+  async function loadSavedSkillMap(savedSkillMapIdToLoad: string, successMessage: string) {
     setLoadingSkillMapId(savedSkillMapIdToLoad);
     setErrorMessage(null);
     setSaveMessage(null);
@@ -160,9 +238,11 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
       setTheme(parsedPayload.data.prompt);
       setGeneratedPrompt(parsedPayload.data.prompt);
       setSkillMap(parsedPayload.data.skillMap);
+      setRelatedEdges(parsedPayload.data.relatedEdges);
       setSavedSkillMapId(parsedPayload.data.id);
+      window.localStorage.setItem(LAST_OPENED_SKILL_MAP_ID_KEY, parsedPayload.data.id);
       setGeneratorMode(null);
-      setSaveMessage("保存済みマップを読み込みました。");
+      setSaveMessage(successMessage);
     } catch {
       setErrorMessage("保存済みマップの読み込みに失敗しました。");
     } finally {
@@ -172,14 +252,18 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
 
   return (
     <div className="space-y-6">
-      <form className="rounded-lg border bg-card p-4 shadow-sm sm:p-5" onSubmit={handleSubmit}>
+      <form
+        aria-busy={isGenerating}
+        className="rounded-lg border bg-card p-4 shadow-sm sm:p-5"
+        onSubmit={handleSubmit}
+      >
         <label className="mb-2 block text-sm font-medium" htmlFor="topic">
           テーマを入力してください
         </label>
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            disabled={isGenerating}
+            disabled={isBusy}
             id="topic"
             name="topic"
             onChange={(event) => setTheme(event.target.value)}
@@ -187,7 +271,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
             type="text"
             value={theme}
           />
-          <Button className="h-11 gap-2" disabled={isGenerating} type="submit">
+          <Button className="h-11 gap-2" disabled={isBusy} type="submit">
             {isGenerating ? (
               <>
                 <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -201,7 +285,11 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
             )}
           </Button>
         </div>
-        {errorMessage ? <p className="mt-3 text-sm text-destructive">{errorMessage}</p> : null}
+        {errorMessage ? (
+          <p aria-live="assertive" className="mt-3 text-sm text-destructive" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
       </form>
 
       <aside className="rounded-lg border bg-card p-5 lg:hidden">
@@ -218,7 +306,8 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
           <div className="grid gap-2">
             {savedSkillMaps.map((savedSkillMap) => (
               <button
-                className={`rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted ${
+                aria-current={savedSkillMap.id === savedSkillMapId ? "true" : undefined}
+                className={`rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-70 ${
                   savedSkillMap.id === savedSkillMapId ? "border-primary bg-muted" : ""
                 }`}
                 disabled={loadingSkillMapId !== null}
@@ -226,7 +315,14 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
                 onClick={() => handleLoad(savedSkillMap.id)}
                 type="button"
               >
-                <span className="block text-sm font-medium">{savedSkillMap.title}</span>
+                <span className="flex min-w-0 items-center justify-between gap-3">
+                  <span className="block min-w-0 break-words text-sm font-medium">
+                    {savedSkillMap.title}
+                  </span>
+                  {loadingSkillMapId === savedSkillMap.id ? (
+                    <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />
+                  ) : null}
+                </span>
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {savedSkillMap.nodeCount}ノード / {formatDate(savedSkillMap.createdAt)}
                 </span>
@@ -234,7 +330,12 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">保存済みのスキルマップはまだありません。</p>
+          <div className="rounded-md border border-dashed bg-muted/30 p-4">
+            <p className="text-sm font-medium">保存済みのスキルマップはまだありません。</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              テーマから生成したあとに保存すると、この一覧から再表示できます。
+            </p>
+          </div>
         )}
       </section>
 
@@ -244,6 +345,18 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold">スキルマップ</h3>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                    hasSavedCurrentMap
+                      ? "border-accent/40 bg-accent/10 text-foreground"
+                      : "border-border bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {hasSavedCurrentMap ? (
+                    <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 text-accent" />
+                  ) : null}
+                  {hasSavedCurrentMap ? "保存済み" : "未保存"}
+                </span>
                 {generatorMode === "mock" ? (
                   <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
                     開発用モックデータを表示しています
@@ -252,14 +365,27 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
               </div>
             </div>
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <Button disabled={isSaving || savedSkillMapId !== null} onClick={handleSave} type="button">
+              <Button
+                className="gap-2"
+                disabled={isSaving || savedSkillMapId !== null}
+                onClick={handleSave}
+                type="button"
+              >
+                {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
                 {isSaving ? "保存中" : savedSkillMapId ? "保存済み" : "保存する"}
               </Button>
-              {saveMessage ? <p className="text-sm text-muted-foreground">{saveMessage}</p> : null}
+              {saveMessage ? (
+                <p aria-live="polite" className="text-sm text-muted-foreground" role="status">
+                  {saveMessage}
+                </p>
+              ) : null}
             </div>
             <SkillMapLearningView
               mapKey={savedSkillMapId ?? generatedPrompt}
-              onChangeSkillMap={setSkillMap}
+              onChangeRelatedEdges={setRelatedEdges}
+              onChangeSkillMap={handleChangeSkillMap}
+              relatedEdges={relatedEdges}
+              savedSkillMapId={savedSkillMapId}
               skillMap={skillMap}
             />
           </div>
@@ -271,6 +397,29 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
       )}
     </div>
   );
+}
+
+function countSkillMapNodes(skillMap: StudySkillMapNode): number {
+  return skillMap.children.reduce((count, child) => count + countVisibleSkillMapNodes(child), 0);
+}
+
+function countVisibleSkillMapNodes(skillMap: StudySkillMapNode): number {
+  return 1 + skillMap.children.reduce((count, child) => count + countVisibleSkillMapNodes(child), 0);
+}
+
+function toGeneratedSkillMapForSave(skillMap: StudySkillMapNode): GeneratedSkillMap {
+  const rootNode = skillMap.children[0] ?? skillMap;
+
+  return toGeneratedSkillMapNode(rootNode);
+}
+
+function toGeneratedSkillMapNode(node: StudySkillMapNode): GeneratedSkillMap {
+  return {
+    title: node.title,
+    description: node.description,
+    tags: node.tags,
+    children: node.children.map(toGeneratedSkillMapNode),
+  };
 }
 
 export function SkillMapExampleList() {
@@ -313,4 +462,14 @@ function getApiErrorMessage(payload: unknown) {
 
 function isApiErrorResponse(payload: unknown): payload is ApiErrorResponse {
   return typeof payload === "object" && payload !== null && "error" in payload;
+}
+
+function isListSkillMapsResponse(payload: unknown): payload is ListSkillMapsResponse {
+  if (typeof payload !== "object" || payload === null || !("data" in payload)) {
+    return false;
+  }
+
+  const data = (payload as { data: unknown }).data;
+
+  return Array.isArray(data);
 }
