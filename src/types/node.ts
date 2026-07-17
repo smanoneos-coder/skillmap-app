@@ -1,5 +1,7 @@
 import type { ProgressStatus } from "@/types/progress";
 
+export type NodeConnectionPosition = "right" | "down" | "left" | "up";
+
 export type SkillMapNode = {
   id: string;
   skillMapId: string;
@@ -10,6 +12,8 @@ export type SkillMapNode = {
   tags: string[];
   positionX: number | null;
   positionY: number | null;
+  parentLocked: boolean;
+  parentEdgeSourcePosition: NodeConnectionPosition | null;
   status?: ProgressStatus;
   children?: SkillMapNode[];
 };
@@ -29,5 +33,9 @@ export type StudySkillMapNode = {
   progressStatus: ProgressStatus;
   positionX: number | null;
   positionY: number | null;
+  parentLocked: boolean;
+  parentEdgeSourcePosition: NodeConnectionPosition | null;
   children: StudySkillMapNode[];
 };
+
+export type ChildNodeDirection = NodeConnectionPosition;

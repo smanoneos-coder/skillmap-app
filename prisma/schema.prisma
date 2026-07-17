@@ -48,6 +48,8 @@ model Node {
   tags        Json    @default("[]")
   positionX   Float?  @map("position_x")
   positionY   Float?  @map("position_y")
+  parentLocked Boolean @default(false) @map("parent_locked")
+  parentEdgeSourcePosition String? @map("parent_edge_source_position")
 
   skillMap   SkillMap           @relation(fields: [skillMapId], references: [id], onDelete: Cascade)
   parent     Node?              @relation("NodeToNode", fields: [parentId], references: [id], onDelete: Cascade)

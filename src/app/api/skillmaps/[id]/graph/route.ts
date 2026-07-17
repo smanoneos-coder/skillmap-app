@@ -14,6 +14,7 @@ import {
 export const runtime = "nodejs";
 
 const MAX_POSITION = 100_000;
+const connectionPositionSchema = z.enum(["right", "down", "left", "up"]);
 
 const paramsSchema = z.object({
   id: z.string().uuid(),
@@ -28,6 +29,8 @@ const graphNodeSchema = z.object({
   order: z.number().int().min(0).max(10_000),
   positionX: z.number().finite().min(-MAX_POSITION).max(MAX_POSITION).nullable(),
   positionY: z.number().finite().min(-MAX_POSITION).max(MAX_POSITION).nullable(),
+  parentLocked: z.boolean().default(false),
+  parentEdgeSourcePosition: connectionPositionSchema.nullable().default(null),
   isNew: z.boolean(),
 });
 
@@ -87,6 +90,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       return apiError("BAD_REQUEST", error.message, 400);
     }
 
+    console.error("Skill map graph save failed.", summarizeError(error));
+
     return apiError("INTERNAL_ERROR", "Unexpected server error.", 500);
   }
 }
@@ -131,4 +136,28 @@ async function parseJsonBody(request: Request) {
       message: "Request body must be valid JSON.",
     };
   }
+}
+
+function summarizeError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return {
+      name: "UnknownError",
+    };
+  }
+
+  const maybePrismaError = error as Error & {
+    code?: string;
+    meta?: {
+      cause?: unknown;
+    };
+  };
+
+  return {
+    code: maybePrismaError.code,
+    cause:
+      typeof maybePrismaError.meta?.cause === "string"
+        ? maybePrismaError.meta.cause.slice(0, 160)
+        : undefined,
+    name: error.name,
+  };
 }

@@ -1,7 +1,7 @@
 import { Position, type Edge, type Node } from "@xyflow/react";
 
 import { getSkillMapNodePath } from "@/lib/skillmap-search";
-import type { StudySkillMapNode } from "@/types/node";
+import type { NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { StudySkillMapEdge } from "@/types/skillmap";
 
 export type SkillMapFlowNodeData = {
@@ -51,12 +51,12 @@ export function createSkillMapFlowElements(
   function visit(
     node: StudySkillMapNode,
     depth: number,
-    parentId: string | null,
     indexPath: string,
   ): number {
     const currentId = getFlowNodeId(indexPath);
+    const childPaths = node.children.map((_, index) => getSkillMapNodePath(indexPath, index));
     const childYPositions = node.children.map((child, index) =>
-      visit(child, depth + 1, currentId, getSkillMapNodePath(indexPath, index)),
+      visit(child, depth + 1, childPaths[index]),
     );
     const isSearchMatch = options.searchMatchPaths?.has(indexPath) ?? false;
     const isActiveSearchMatch = options.activeSearchPath === indexPath;
@@ -117,19 +117,24 @@ export function createSkillMapFlowElements(
       flowNodesByStudyNodeId.set(node.nodeId, flowNode);
     }
 
-    if (parentId) {
-      const parentNode = nodes.find((candidate) => candidate.id === parentId);
-      const edgePositions = parentNode
-        ? getEdgePositions(parentNode.position, { x, y })
-        : {
-            sourcePosition: Position.Right,
-            targetPosition: Position.Left,
-          };
+    for (const childPath of childPaths) {
+      const childId = getFlowNodeId(childPath);
+      const childNode = nodes.find((candidate) => candidate.id === childId);
+
+      if (!childNode) {
+        continue;
+      }
+
+      const edgePositions = getHierarchyEdgePositions(
+        childNode.data.skillMapNode.parentEdgeSourcePosition,
+        flowNode.position,
+        childNode.position,
+      );
 
       edges.push({
-        id: `hierarchy:${parentId}:${currentId}`,
-        source: parentId,
-        target: currentId,
+        id: `hierarchy:${currentId}:${childId}`,
+        source: currentId,
+        target: childId,
         sourceHandle: `source-${edgePositions.sourcePosition.toLowerCase()}`,
         targetHandle: `target-${edgePositions.targetPosition.toLowerCase()}`,
         type: "smoothstep",
@@ -148,7 +153,7 @@ export function createSkillMapFlowElements(
   }
 
   skillMap.children.forEach((child, index) => {
-    visit(child, 0, null, getSkillMapNodePath("", index));
+    visit(child, 0, getSkillMapNodePath("", index));
   });
 
   for (const relatedEdge of options.relatedEdges ?? []) {
@@ -244,4 +249,53 @@ function getEdgePositions(
         sourcePosition: Position.Top,
         targetPosition: Position.Bottom,
       };
+}
+
+function getHierarchyEdgePositions(
+  fixedSourcePosition: NodeConnectionPosition | null,
+  sourcePosition: { x: number; y: number },
+  targetPosition: { x: number; y: number },
+) {
+  if (!fixedSourcePosition) {
+    return getEdgePositions(sourcePosition, targetPosition);
+  }
+
+  const sourceHandlePosition = toReactFlowPosition(fixedSourcePosition);
+
+  return {
+    sourcePosition: sourceHandlePosition,
+    targetPosition: getOppositePosition(sourceHandlePosition),
+  };
+}
+
+function toReactFlowPosition(position: NodeConnectionPosition) {
+  if (position === "left") {
+    return Position.Left;
+  }
+
+  if (position === "down") {
+    return Position.Bottom;
+  }
+
+  if (position === "up") {
+    return Position.Top;
+  }
+
+  return Position.Right;
+}
+
+function getOppositePosition(position: Position) {
+  if (position === Position.Left) {
+    return Position.Right;
+  }
+
+  if (position === Position.Right) {
+    return Position.Left;
+  }
+
+  if (position === Position.Top) {
+    return Position.Bottom;
+  }
+
+  return Position.Top;
 }

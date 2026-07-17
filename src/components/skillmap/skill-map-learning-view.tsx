@@ -4,21 +4,28 @@ import type { NodeChange } from "@xyflow/react";
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { SkillMapDetailDrawer } from "@/components/skillmap/skill-map-detail-drawer";
+import {
+  SkillMapDetailDrawer,
+  type ParentNodeOption,
+} from "@/components/skillmap/skill-map-detail-drawer";
 import { SkillMapFlowViewer } from "@/components/skillmap/skill-map-flow-viewer";
 import { SkillMapListViewer } from "@/components/skillmap/skill-map-list-viewer";
 import {
   addStudySkillMapChildNode,
   addStudySkillMapRootNode,
+  autoArrangeStudySkillMap,
   deleteStudySkillMapNodeAtPathWithMode,
   getSkillMapProgressStats,
+  reparentStudySkillMapNode,
   updateStudySkillMapNodeDetails,
+  updateStudySkillMapNodeEdgeSourcePosition,
+  updateStudySkillMapNodeParentLock,
   updateStudySkillMapNodePosition,
   updateStudySkillMapNodeStatus,
 } from "@/lib/skillmap-progress";
-import type { SkillMapFlowNode } from "@/lib/skillmap-flow";
+import { createSkillMapFlowElements, type SkillMapFlowNode } from "@/lib/skillmap-flow";
 import { getSkillMapNodeByPath, searchSkillMap } from "@/lib/skillmap-search";
-import type { StudySkillMapNode } from "@/types/node";
+import type { ChildNodeDirection, NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { ProgressStatus } from "@/types/progress";
 import type { StudySkillMapEdge } from "@/types/skillmap";
 
@@ -80,6 +87,14 @@ export function SkillMapLearningView({
   const selectedRelatedEdge = selectedRelatedEdgeId
     ? visibleRelatedEdges.find((edge) => edge.id === selectedRelatedEdgeId) ?? null
     : null;
+  const currentParentPath = selectedNodePath ? getParentPath(selectedNodePath) : null;
+  const parentOptions = useMemo(
+    () =>
+      selectedNodePath
+        ? createParentOptions(visibleSkillMap, selectedNodePath)
+        : [{ label: "ルートにする", path: null }],
+    [selectedNodePath, visibleSkillMap],
+  );
 
   useEffect(() => {
     setSelectedNode(null);
@@ -98,6 +113,14 @@ export function SkillMapLearningView({
   useEffect(() => {
     setActiveSearchIndex(0);
   }, [query]);
+
+  useEffect(() => {
+    if (!selectedNodePath) {
+      return;
+    }
+
+    setSelectedNode(getSkillMapNodeByPath(visibleSkillMap, selectedNodePath));
+  }, [selectedNodePath, visibleSkillMap]);
 
   async function handleUpdateProgress(nodeId: string, status: ProgressStatus) {
     if (isTemporaryNodeId(nodeId)) {
@@ -162,12 +185,42 @@ export function SkillMapLearningView({
     onChangeSkillMap(nextSkillMap);
   }
 
+  function ensureEditMode() {
+    if (draftSkillMap) {
+      return {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: draftSkillMap,
+      };
+    }
+
+    if (!savedSkillMapId) {
+      setGraphEditError("保存済みマップを開くと編集できます。");
+      return null;
+    }
+
+    const nextDraftSkillMap = cloneStudySkillMap(skillMap);
+    const nextDraftRelatedEdges = cloneRelatedEdges(relatedEdges);
+
+    setDraftSkillMap(nextDraftSkillMap);
+    setDraftRelatedEdges(nextDraftRelatedEdges);
+    setEditMode(true);
+    setSelectedRelatedEdgeId(null);
+    setGraphEditError(null);
+
+    return {
+      relatedEdges: nextDraftRelatedEdges,
+      skillMap: nextDraftSkillMap,
+    };
+  }
+
   function handleUpdateNodeDetails(input: {
     title: string;
     description: string;
     tags: string[];
   }) {
-    if (!selectedNodePath || !editMode || !draftSkillMap) {
+    const editState = ensureEditMode();
+
+    if (!selectedNodePath || !editState) {
       setNodeEditError("編集モードでノードを編集してください。");
       return;
     }
@@ -190,20 +243,74 @@ export function SkillMapLearningView({
     setNodeEditError(null);
 
     try {
-      const nextSkillMap = updateStudySkillMapNodeDetails(visibleSkillMap, selectedNodePath, {
+      const nextSkillMap = updateStudySkillMapNodeDetails(editState.skillMap, selectedNodePath, {
         title,
         description,
         tags,
       });
-      applySkillMapChange(nextSkillMap);
+      setDraftSkillMap(nextSkillMap);
       setSelectedNode(getSkillMapNodeByPath(nextSkillMap, selectedNodePath));
     } finally {
       setIsEditingNode(false);
     }
   }
 
+  function handleUpdateNodeParent(input: { parentLocked: boolean; parentPath: string | null }) {
+    const editState = ensureEditMode();
+
+    if (!selectedNodePath || !editState) {
+      setNodeEditError("編集モードで親ノードを変更してください。");
+      return;
+    }
+
+    const currentParent = getParentPath(selectedNodePath);
+    const nextSkillMap =
+      input.parentPath === currentParent
+        ? updateStudySkillMapNodeParentLock(editState.skillMap, selectedNodePath, input.parentLocked)
+        : reparentStudySkillMapNode(
+            editState.skillMap,
+            selectedNodePath,
+            input.parentPath,
+            input.parentLocked,
+          );
+
+    if (!nextSkillMap) {
+      setNodeEditError("指定した親ノードへ移動できません。階層数や循環を確認してください。");
+      return;
+    }
+
+    const nextSelectedPath =
+      selectedNode?.nodeId ? findStudySkillMapNodePathByNodeId(nextSkillMap, selectedNode.nodeId) : null;
+
+    setDraftSkillMap(nextSkillMap);
+    setSelectedNodePath(nextSelectedPath);
+    setSelectedNode(nextSelectedPath ? getSkillMapNodeByPath(nextSkillMap, nextSelectedPath) : null);
+    setNodeEditError(null);
+  }
+
+  function handleUpdateNodeEdgeSourcePosition(position: NodeConnectionPosition | null) {
+    const editState = ensureEditMode();
+
+    if (!selectedNodePath || !editState) {
+      setNodeEditError("編集モードで開始点を変更してください。");
+      return;
+    }
+
+    const nextSkillMap = updateStudySkillMapNodeEdgeSourcePosition(
+      editState.skillMap,
+      selectedNodePath,
+      position,
+    );
+
+    setDraftSkillMap(nextSkillMap);
+    setSelectedNode(getSkillMapNodeByPath(nextSkillMap, selectedNodePath));
+    setNodeEditError(null);
+  }
+
   function handleDeleteNode() {
-    if (!selectedNode || !selectedNodePath || !editMode || !draftSkillMap) {
+    const editState = ensureEditMode();
+
+    if (!selectedNode || !selectedNodePath || !editState) {
       setNodeEditError("編集モードでノードを削除してください。");
       return;
     }
@@ -236,15 +343,15 @@ export function SkillMapLearningView({
     try {
       const removedNodeIds = new Set(collectRemovedNodeIds(selectedNode, mode));
       const nextSkillMap = deleteStudySkillMapNodeAtPathWithMode(
-        visibleSkillMap,
+        editState.skillMap,
         selectedNodePath,
         mode,
       );
-      const nextRelatedEdges = visibleRelatedEdges.filter(
+      const nextRelatedEdges = editState.relatedEdges.filter(
         (edge) => !removedNodeIds.has(edge.nodeAId) && !removedNodeIds.has(edge.nodeBId),
       );
 
-      applySkillMapChange(nextSkillMap);
+      setDraftSkillMap(nextSkillMap);
       setDraftRelatedEdges(nextRelatedEdges);
       setSelectedNode(null);
       setSelectedNodePath(null);
@@ -254,8 +361,8 @@ export function SkillMapLearningView({
     }
   }
 
-  function handleAddChildNode(title: string) {
-    addDraftNode(title, selectedNodePath);
+  function handleAddChildNode(title: string, direction: ChildNodeDirection) {
+    addDraftNode(title, selectedNodePath, direction);
   }
 
   function handleAddRootNode() {
@@ -265,10 +372,15 @@ export function SkillMapLearningView({
       return;
     }
 
-    addDraftNode(title, null);
+    addDraftNode(title, null, "right");
   }
 
-  function addDraftNode(title: string, parentPath: string | null) {
+  function addDraftNode(
+    title: string,
+    parentPath: string | null,
+    direction: ChildNodeDirection,
+  ) {
+    const editState = ensureEditMode();
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle || trimmedTitle.length > 50) {
@@ -276,12 +388,12 @@ export function SkillMapLearningView({
       return;
     }
 
-    if (!editMode || !draftSkillMap) {
+    if (!editState) {
       setNodeEditError("編集モードでノードを追加してください。");
       return;
     }
 
-    if (countVisibleSkillMapNodes(visibleSkillMap) >= 50) {
+    if (countVisibleSkillMapNodes(editState.skillMap) >= 50) {
       setNodeEditError("ノード数は50件までです。");
       return;
     }
@@ -295,13 +407,16 @@ export function SkillMapLearningView({
     setNodeEditError(null);
 
     try {
-      const nextNode = createDraftNode(trimmedTitle);
-      const nextRootPath = String(visibleSkillMap.children.length + 1);
+      const nextNode = createDraftNode(
+        trimmedTitle,
+        parentPath ? getChildNodePosition(editState.skillMap, parentPath, direction) : null,
+      );
+      const nextRootPath = String(editState.skillMap.children.length + 1);
       const nextSkillMap = parentPath
-        ? addStudySkillMapChildNode(visibleSkillMap, parentPath, nextNode)
-        : addStudySkillMapRootNode(visibleSkillMap, nextNode);
+        ? addStudySkillMapChildNode(editState.skillMap, parentPath, nextNode)
+        : addStudySkillMapRootNode(editState.skillMap, nextNode);
 
-      applySkillMapChange(nextSkillMap);
+      setDraftSkillMap(nextSkillMap);
       setSelectedNode(parentPath ? getSkillMapNodeByPath(nextSkillMap, parentPath) : nextNode);
       setSelectedNodePath(parentPath ?? nextRootPath);
     } finally {
@@ -405,6 +520,17 @@ export function SkillMapLearningView({
     });
   }
 
+  function handleAutoArrange() {
+    if (!editMode || !draftSkillMap) {
+      setGraphEditError("編集モードで自動整列してください。");
+      return;
+    }
+
+    setDraftSkillMap(autoArrangeStudySkillMap(visibleSkillMap));
+    setSelectedRelatedEdgeId(null);
+    setGraphEditError(null);
+  }
+
   function handleConnectRelatedEdge(firstNodeId: string, secondNodeId: string) {
     if (!editMode || !draftSkillMap) {
       setGraphEditError("編集モードで関連線を追加してください。");
@@ -466,7 +592,8 @@ export function SkillMapLearningView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0 space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-2">
           <p className="text-sm text-muted-foreground">ノードをクリックすると詳細を表示します。</p>
@@ -610,6 +737,14 @@ export function SkillMapLearningView({
             </button>
             <button
               className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              disabled={isSavingGraph}
+              onClick={handleAutoArrange}
+              type="button"
+            >
+              4方向自動整列
+            </button>
+            <button
+              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
               disabled={isSavingGraph || !selectedRelatedEdge}
               onClick={handleDeleteSelectedRelatedEdge}
               type="button"
@@ -659,7 +794,12 @@ export function SkillMapLearningView({
         />
       )}
 
+      </div>
+
+      <div className="min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:min-h-0">
       <SkillMapDetailDrawer
+        currentParentPath={currentParentPath}
+        editMode={editMode}
         isAddingChild={isAddingChild}
         isDeletingNode={isDeletingNode}
         isEditingNode={isEditingNode}
@@ -674,8 +814,13 @@ export function SkillMapLearningView({
         }}
         onDeleteNode={handleDeleteNode}
         onUpdateNodeDetails={handleUpdateNodeDetails}
+        onUpdateNodeEdgeSourcePosition={handleUpdateNodeEdgeSourcePosition}
+        onUpdateNodeParent={handleUpdateNodeParent}
         onUpdateProgress={handleUpdateProgress}
+        parentOptions={parentOptions}
+        variant="panel"
       />
+      </div>
     </div>
   );
 }
@@ -731,17 +876,137 @@ function getPathFromFlowNodeId(nodeId: string) {
   return nodeId.startsWith("node-") ? nodeId.slice("node-".length) : nodeId;
 }
 
-function createDraftNode(title: string): StudySkillMapNode {
+function getParentPath(path: string) {
+  const parts = path.split("-");
+
+  if (parts.length <= 1) {
+    return null;
+  }
+
+  return parts.slice(0, -1).join("-");
+}
+
+function createParentOptions(
+  skillMap: StudySkillMapNode,
+  selectedPath: string,
+): ParentNodeOption[] {
+  const selectedNode = getSkillMapNodeByPath(skillMap, selectedPath);
+  const selectedDepth = selectedNode ? getStudySkillMapNodeDepth(selectedNode) : 1;
+  const options: ParentNodeOption[] = [{ label: "ルートにする", path: null }];
+
+  function visit(node: StudySkillMapNode, path: string, depth: number) {
+    const isSelectedNode = path === selectedPath;
+    const isSelectedDescendant = path.startsWith(`${selectedPath}-`);
+    const wouldExceedMaxDepth = depth + selectedDepth > 4;
+
+    if (!isSelectedNode && !isSelectedDescendant && !wouldExceedMaxDepth) {
+      options.push({
+        label: `${"　".repeat(Math.max(0, depth - 1))}${node.title}`,
+        path,
+      });
+    }
+
+    node.children.forEach((child, index) => {
+      visit(child, path ? `${path}-${index + 1}` : String(index + 1), depth + 1);
+    });
+  }
+
+  skillMap.children.forEach((child, index) => {
+    visit(child, String(index + 1), 1);
+  });
+
+  return options;
+}
+
+function getStudySkillMapNodeDepth(node: StudySkillMapNode): number {
+  if (node.children.length === 0) {
+    return 1;
+  }
+
+  return 1 + Math.max(...node.children.map(getStudySkillMapNodeDepth));
+}
+
+function findStudySkillMapNodePathByNodeId(
+  skillMap: StudySkillMapNode,
+  nodeId: string,
+): string | null {
+  let foundPath: string | null = null;
+
+  function visit(node: StudySkillMapNode, path: string) {
+    if (foundPath) {
+      return;
+    }
+
+    if (node.nodeId === nodeId) {
+      foundPath = path;
+      return;
+    }
+
+    node.children.forEach((child, index) => {
+      visit(child, `${path}-${index + 1}`);
+    });
+  }
+
+  skillMap.children.forEach((child, index) => {
+    visit(child, String(index + 1));
+  });
+
+  return foundPath;
+}
+
+function createDraftNode(
+  title: string,
+  position: { x: number; y: number } | null = null,
+): StudySkillMapNode {
   return {
     nodeId: createTemporaryNodeId(),
     title,
     description: `${title}について学習します。`,
     tags: [],
     progressStatus: "NOT_STARTED",
-    positionX: null,
-    positionY: null,
+    positionX: position?.x ?? null,
+    positionY: position?.y ?? null,
+    parentLocked: false,
+    parentEdgeSourcePosition: null,
     children: [],
   };
+}
+
+function getChildNodePosition(
+  skillMap: StudySkillMapNode,
+  parentPath: string,
+  direction: ChildNodeDirection,
+) {
+  const parentPosition = getFlowNodePosition(skillMap, parentPath);
+  const directionOffset = getDirectionOffset(direction);
+
+  return {
+    x: parentPosition.x + directionOffset.x,
+    y: parentPosition.y + directionOffset.y,
+  };
+}
+
+function getFlowNodePosition(skillMap: StudySkillMapNode, path: string) {
+  const flowElements = createSkillMapFlowElements(skillMap);
+  const flowNode = flowElements.nodes.find((node) => node.data.path === path);
+
+  return flowNode?.position ?? { x: 0, y: 0 };
+}
+
+function getDirectionOffset(direction: ChildNodeDirection) {
+  if (direction === "left") {
+    return { x: -320, y: 0 };
+  }
+
+  if (direction === "down") {
+    return { x: 0, y: 180 };
+  }
+
+  if (direction === "up") {
+    return { x: 0, y: -180 };
+  }
+
+  return { x: 320, y: 0 };
 }
 
 function createTemporaryNodeId() {
@@ -778,6 +1043,8 @@ function flattenSkillMapForGraphSave(skillMap: StudySkillMapNode) {
     order: number;
     positionX: number | null;
     positionY: number | null;
+    parentLocked: boolean;
+    parentEdgeSourcePosition: NodeConnectionPosition | null;
     isNew: boolean;
   }[] = [];
 
@@ -795,6 +1062,8 @@ function flattenSkillMapForGraphSave(skillMap: StudySkillMapNode) {
       order,
       positionX: node.positionX,
       positionY: node.positionY,
+      parentLocked: node.parentLocked,
+      parentEdgeSourcePosition: node.parentEdgeSourcePosition,
       isNew: isTemporaryNodeId(node.nodeId),
     });
 

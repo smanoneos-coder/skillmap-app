@@ -3,7 +3,7 @@ import { Prisma, type Node as PrismaNode, type ProgressStatus } from "@prisma/cl
 import { prisma } from "@/lib/prisma";
 import { MAX_SKILLMAP_DEPTH, MAX_SKILLMAP_NODES } from "@/lib/skillmap-schema";
 import type { GeneratedSkillMap } from "@/lib/skillmap-schema";
-import type { StudySkillMapNode } from "@/types/node";
+import type { NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { SavedSkillMapDetail, SavedSkillMapSummary, StudySkillMapEdge } from "@/types/skillmap";
 
 type SaveSkillMapInput = {
@@ -21,6 +21,8 @@ export type SkillMapGraphNodeInput = {
   order: number;
   positionX: number | null;
   positionY: number | null;
+  parentLocked: boolean;
+  parentEdgeSourcePosition: NodeConnectionPosition | null;
   isNew: boolean;
 };
 
@@ -137,6 +139,126 @@ export async function getSavedSkillMapDetail(
   };
 }
 
+export async function renameSkillMap(input: {
+  userId: string;
+  skillMapId: string;
+  title: string;
+}): Promise<SavedSkillMapSummary | null> {
+  const skillMap = await prisma.skillMap.findFirst({
+    where: {
+      id: input.skillMapId,
+      userId: input.userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!skillMap) {
+    return null;
+  }
+
+  const updatedSkillMap = await prisma.skillMap.update({
+    where: {
+      id: input.skillMapId,
+    },
+    include: {
+      _count: {
+        select: {
+          nodes: true,
+        },
+      },
+    },
+    data: {
+      title: input.title,
+    },
+  });
+
+  return toSavedSkillMapSummary({
+    id: updatedSkillMap.id,
+    title: updatedSkillMap.title,
+    prompt: updatedSkillMap.prompt,
+    createdAt: updatedSkillMap.createdAt,
+    nodeCount: updatedSkillMap._count.nodes,
+  });
+}
+
+export async function deleteSkillMap(input: {
+  userId: string;
+  skillMapId: string;
+}): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const skillMap = await tx.skillMap.findFirst({
+      where: {
+        id: input.skillMapId,
+        userId: input.userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!skillMap) {
+      return false;
+    }
+
+    await tx.userNodeProgress.deleteMany({
+      where: {
+        node: {
+          skillMapId: input.skillMapId,
+        },
+      },
+    });
+    await tx.skillMapEdge.deleteMany({
+      where: {
+        skillMapId: input.skillMapId,
+      },
+    });
+    await tx.node.deleteMany({
+      where: {
+        skillMapId: input.skillMapId,
+      },
+    });
+    await tx.skillMap.delete({
+      where: {
+        id: input.skillMapId,
+      },
+    });
+
+    return true;
+  });
+}
+
+export async function resetSkillMapProgress(input: {
+  userId: string;
+  skillMapId: string;
+}): Promise<boolean> {
+  const skillMap = await prisma.skillMap.findFirst({
+    where: {
+      id: input.skillMapId,
+      userId: input.userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!skillMap) {
+    return false;
+  }
+
+  await prisma.userNodeProgress.deleteMany({
+    where: {
+      userId: input.userId,
+      node: {
+        skillMapId: input.skillMapId,
+      },
+    },
+  });
+
+  return true;
+}
+
 export async function updateNodeProgress(input: {
   userId: string;
   nodeId: string;
@@ -187,20 +309,21 @@ export async function saveSkillMapGraph(input: {
   nodes: SkillMapGraphNodeInput[];
   relatedEdges: SkillMapGraphRelatedEdgeInput[];
 }): Promise<SavedSkillMapDetail | null> {
-  return prisma.$transaction(async (tx) => {
-    const skillMap = await tx.skillMap.findFirst({
-      where: {
-        id: input.skillMapId,
-        userId: input.userId,
-      },
-      select: {
-        id: true,
-      },
-    });
+  return prisma.$transaction(
+    async (tx) => {
+      const skillMap = await tx.skillMap.findFirst({
+        where: {
+          id: input.skillMapId,
+          userId: input.userId,
+        },
+        select: {
+          id: true,
+        },
+      });
 
-    if (!skillMap) {
-      return null;
-    }
+      if (!skillMap) {
+        return null;
+      }
 
     const existingNodes = await tx.node.findMany({
       where: {
@@ -283,6 +406,8 @@ export async function saveSkillMapGraph(input: {
             order: node.order,
             positionX: node.positionX,
             positionY: node.positionY,
+            parentLocked: node.parentLocked,
+            parentEdgeSourcePosition: node.parentEdgeSourcePosition,
           },
           select: {
             id: true,
@@ -315,6 +440,8 @@ export async function saveSkillMapGraph(input: {
               order: node.order,
               positionX: node.positionX,
               positionY: node.positionY,
+              parentLocked: node.parentLocked,
+              parentEdgeSourcePosition: node.parentEdgeSourcePosition,
             },
           }),
         ),
@@ -386,47 +513,52 @@ export async function saveSkillMapGraph(input: {
       },
     });
 
-    const updatedSkillMap = await tx.skillMap.findFirst({
-      where: {
-        id: input.skillMapId,
-        userId: input.userId,
-      },
-      include: {
-        nodes: {
-          orderBy: [{ parentId: "asc" }, { order: "asc" }],
-          include: {
-            progresses: {
-              where: {
-                userId: input.userId,
+      const updatedSkillMap = await tx.skillMap.findFirst({
+        where: {
+          id: input.skillMapId,
+          userId: input.userId,
+        },
+        include: {
+          nodes: {
+            orderBy: [{ parentId: "asc" }, { order: "asc" }],
+            include: {
+              progresses: {
+                where: {
+                  userId: input.userId,
+                },
               },
             },
           },
-        },
-        edges: {
-          orderBy: {
-            createdAt: "asc",
+          edges: {
+            orderBy: {
+              createdAt: "asc",
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!updatedSkillMap) {
-      return null;
-    }
+      if (!updatedSkillMap) {
+        return null;
+      }
 
-    return {
-      id: updatedSkillMap.id,
-      title: updatedSkillMap.title,
-      prompt: updatedSkillMap.prompt,
-      createdAt: updatedSkillMap.createdAt.toISOString(),
-      skillMap: buildSkillMapTree({
+      return {
+        id: updatedSkillMap.id,
         title: updatedSkillMap.title,
-        description: updatedSkillMap.prompt,
-        nodes: updatedSkillMap.nodes,
-      }),
-      relatedEdges: updatedSkillMap.edges.map(toStudySkillMapEdge),
-    };
-  });
+        prompt: updatedSkillMap.prompt,
+        createdAt: updatedSkillMap.createdAt.toISOString(),
+        skillMap: buildSkillMapTree({
+          title: updatedSkillMap.title,
+          description: updatedSkillMap.prompt,
+          nodes: updatedSkillMap.nodes,
+        }),
+        relatedEdges: updatedSkillMap.edges.map(toStudySkillMapEdge),
+      };
+    },
+    {
+      maxWait: 15_000,
+      timeout: 60_000,
+    },
+  );
 }
 
 export async function updateNodeDetails(input: {
@@ -634,6 +766,8 @@ export async function createChildNode(input: {
         tags: [],
         positionX: null,
         positionY: null,
+        parentLocked: false,
+        parentEdgeSourcePosition: null,
       },
       select: {
         id: true,
@@ -642,6 +776,8 @@ export async function createChildNode(input: {
         tags: true,
         positionX: true,
         positionY: true,
+        parentLocked: true,
+        parentEdgeSourcePosition: true,
       },
     });
 
@@ -655,6 +791,8 @@ export async function createChildNode(input: {
         progressStatus: "NOT_STARTED" as const,
         positionX: node.positionX,
         positionY: node.positionY,
+        parentLocked: node.parentLocked,
+        parentEdgeSourcePosition: parseNodeConnectionPosition(node.parentEdgeSourcePosition),
         children: [],
       },
     };
@@ -743,6 +881,8 @@ function buildSkillMapTree(input: {
     progressStatus: "NOT_STARTED",
     positionX: null,
     positionY: null,
+    parentLocked: false,
+    parentEdgeSourcePosition: null,
     children: rootNodes,
   };
 }
@@ -761,8 +901,14 @@ function buildNode(node: PrismaNodeWithProgress, allNodes: PrismaNodeWithProgres
     progressStatus: node.progresses[0]?.status ?? "NOT_STARTED",
     positionX: node.positionX,
     positionY: node.positionY,
+    parentLocked: node.parentLocked,
+    parentEdgeSourcePosition: parseNodeConnectionPosition(node.parentEdgeSourcePosition),
     children,
   };
+}
+
+function parseNodeConnectionPosition(value: string | null): NodeConnectionPosition | null {
+  return value === "right" || value === "down" || value === "left" || value === "up" ? value : null;
 }
 
 function parseTags(value: Prisma.JsonValue) {

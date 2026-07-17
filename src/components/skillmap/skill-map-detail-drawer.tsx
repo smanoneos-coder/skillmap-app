@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
 import { PROGRESS_STATUSES, PROGRESS_STATUS_LABELS, PROGRESS_STATUS_STYLES } from "@/constants/status";
-import type { StudySkillMapNode } from "@/types/node";
+import type { ChildNodeDirection, NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { ProgressStatus } from "@/types/progress";
 
 type NodeDetailsInput = {
@@ -15,21 +15,33 @@ type NodeDetailsInput = {
   tags: string[];
 };
 
+export type ParentNodeOption = {
+  label: string;
+  path: string | null;
+};
+
 type SkillMapDetailDrawerProps = {
+  currentParentPath: string | null;
+  editMode: boolean;
   isAddingChild: boolean;
   isDeletingNode: boolean;
   isEditingNode: boolean;
   isUpdatingProgress: boolean;
   nodeEditError: string | null;
   node: StudySkillMapNode | null;
-  onAddChildNode: (title: string) => void;
+  onAddChildNode: (title: string, direction: ChildNodeDirection) => void;
   onClose: () => void;
   onDeleteNode: () => void;
+  onUpdateNodeParent: (input: { parentLocked: boolean; parentPath: string | null }) => void;
+  onUpdateNodeEdgeSourcePosition: (position: NodeConnectionPosition | null) => void;
   onUpdateNodeDetails: (input: NodeDetailsInput) => void;
   onUpdateProgress: (nodeId: string, status: ProgressStatus) => void;
+  parentOptions: ParentNodeOption[];
+  variant?: "overlay" | "panel";
 };
 
 export function SkillMapDetailDrawer({
+  currentParentPath,
   isAddingChild,
   isDeletingNode,
   isEditingNode,
@@ -39,22 +51,51 @@ export function SkillMapDetailDrawer({
   onAddChildNode,
   onClose,
   onDeleteNode,
+  onUpdateNodeParent,
+  onUpdateNodeEdgeSourcePosition,
   onUpdateNodeDetails,
   onUpdateProgress,
+  parentOptions,
+  variant = "overlay",
 }: SkillMapDetailDrawerProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [childTitle, setChildTitle] = useState("");
+  const [childDirection, setChildDirection] = useState<ChildNodeDirection>("right");
+  const [selectedParentPath, setSelectedParentPath] = useState("");
+  const [parentLocked, setParentLocked] = useState(false);
+  const [edgeSourcePosition, setEdgeSourcePosition] = useState<NodeConnectionPosition | "auto">("auto");
 
   useEffect(() => {
     setTitle(node?.title ?? "");
     setDescription(node?.description ?? "");
     setTagsText(node?.tags.join(", ") ?? "");
     setChildTitle("");
-  }, [node]);
+    setSelectedParentPath(currentParentPath ?? "");
+    setParentLocked(node?.parentLocked ?? false);
+    setEdgeSourcePosition(node?.parentEdgeSourcePosition ?? "auto");
+  }, [currentParentPath, node]);
 
   if (!node) {
+    if (variant === "panel") {
+      return (
+        <aside
+          aria-label="ノード詳細"
+          className="flex h-full min-h-[520px] flex-col rounded-lg border bg-card"
+        >
+          <div className="flex flex-1 items-center justify-center p-6 text-center">
+            <div className="max-w-64 space-y-2">
+              <h2 className="text-base font-semibold">ノードを選択</h2>
+              <p className="text-sm leading-6 text-muted-foreground">
+                中央のスキルマップまたはリストからノードを選ぶと、編集と詳細確認がここに表示されます。
+              </p>
+            </div>
+          </div>
+        </aside>
+      );
+    }
+
     return null;
   }
 
@@ -65,6 +106,10 @@ export function SkillMapDetailDrawer({
     title.trim() !== node.title ||
     description.trim() !== node.description ||
     tags.join("\n") !== node.tags.join("\n");
+  const hasParentChanges =
+    selectedParentPath !== (currentParentPath ?? "") || parentLocked !== node.parentLocked;
+  const hasEdgeSourceChanges =
+    (edgeSourcePosition === "auto" ? null : edgeSourcePosition) !== node.parentEdgeSourcePosition;
 
   function handleNodeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,21 +122,38 @@ export function SkillMapDetailDrawer({
 
   function handleChildSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onAddChildNode(childTitle);
+    onAddChildNode(childTitle, childDirection);
     setChildTitle("");
   }
 
+  function handleParentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onUpdateNodeParent({
+      parentPath: selectedParentPath || null,
+      parentLocked,
+    });
+  }
+
+  function handleEdgeSourceSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onUpdateNodeEdgeSourcePosition(edgeSourcePosition === "auto" ? null : edgeSourcePosition);
+  }
+
   return (
-    <div className="fixed inset-0 z-50">
+    <div className={variant === "panel" ? "h-full" : "fixed inset-0 z-50"}>
       <button
         aria-label="詳細を閉じる"
-        className="absolute inset-0 bg-background/70"
+        className={variant === "panel" ? "hidden" : "absolute inset-0 bg-background/70"}
         onClick={onClose}
         type="button"
       />
       <aside
         aria-label="ノード詳細"
-        className="absolute bottom-0 right-0 flex max-h-[88vh] w-full flex-col rounded-t-lg border bg-card shadow-xl sm:top-0 sm:h-full sm:max-h-none sm:w-[420px] sm:rounded-none"
+        className={
+          variant === "panel"
+            ? "flex h-full min-h-[520px] flex-col rounded-lg border bg-card"
+            : "absolute bottom-0 right-0 flex max-h-[88vh] w-full flex-col rounded-t-lg border bg-card shadow-xl sm:top-0 sm:h-full sm:max-h-none sm:w-[420px] sm:rounded-none"
+        }
       >
         <header className="flex items-start justify-between gap-3 border-b p-4">
           <div className="min-w-0 space-y-2">
@@ -161,10 +223,102 @@ export function SkillMapDetailDrawer({
               </Button>
             </form>
 
+            <form className="mt-5 space-y-3 border-t pt-4" onSubmit={handleParentSubmit}>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground" htmlFor="node-parent">
+                  親ノード
+                </label>
+                <select
+                  className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+                  disabled={isBusy}
+                  id="node-parent"
+                  onChange={(event) => setSelectedParentPath(event.target.value)}
+                  value={selectedParentPath}
+                >
+                  {parentOptions.map((option) => (
+                    <option key={option.path ?? "__root__"} value={option.path ?? ""}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  checked={parentLocked}
+                  className="h-4 w-4"
+                  disabled={isBusy}
+                  onChange={(event) => setParentLocked(event.target.checked)}
+                  type="checkbox"
+                />
+                この親ノードを固定する
+              </label>
+              <Button disabled={isBusy || !hasParentChanges} type="submit" variant="outline">
+                親設定を反映
+              </Button>
+              <p className="text-xs leading-5 text-muted-foreground">
+                固定したノードは、座標による自動親変更の対象から外せます。
+              </p>
+            </form>
+
+            <form className="mt-5 space-y-3 border-t pt-4" onSubmit={handleEdgeSourceSubmit}>
+              <div>
+                <label
+                  className="block text-xs font-medium text-muted-foreground"
+                  htmlFor="edge-source-position"
+                >
+                  親ノードからの開始点
+                </label>
+                <select
+                  className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+                  disabled={isBusy || !currentParentPath}
+                  id="edge-source-position"
+                  onChange={(event) =>
+                    setEdgeSourcePosition(event.target.value as NodeConnectionPosition | "auto")
+                  }
+                  value={edgeSourcePosition}
+                >
+                  <option value="auto">自動</option>
+                  {CONNECTION_POSITIONS.map((position) => (
+                    <option key={position.value} value={position.value}>
+                      {position.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                disabled={isBusy || !currentParentPath || !hasEdgeSourceChanges}
+                type="submit"
+                variant="outline"
+              >
+                開始点を反映
+              </Button>
+              <p className="text-xs leading-5 text-muted-foreground">
+                自動の場合は、ノードの位置関係に合わせて開始点が変わります。固定すると移動しても開始点を維持します。
+              </p>
+            </form>
+
             <form className="mt-5 space-y-2 border-t pt-4" onSubmit={handleChildSubmit}>
               <label className="text-xs font-medium text-muted-foreground" htmlFor="child-node-title">
                 子ノードを追加
               </label>
+              <div className="grid grid-cols-4 gap-1">
+                {CHILD_NODE_DIRECTIONS.map((direction) => (
+                  <button
+                    aria-pressed={childDirection === direction.value}
+                    className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                      childDirection === direction.value
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
+                    disabled={isBusy}
+                    key={direction.value}
+                    onClick={() => setChildDirection(direction.value)}
+                    type="button"
+                  >
+                    {direction.label}
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
@@ -255,3 +409,17 @@ function parseTagsText(value: string) {
     ),
   ).slice(0, 5);
 }
+
+const CHILD_NODE_DIRECTIONS: { label: string; value: ChildNodeDirection }[] = [
+  { label: "右", value: "right" },
+  { label: "下", value: "down" },
+  { label: "左", value: "left" },
+  { label: "上", value: "up" },
+];
+
+const CONNECTION_POSITIONS: { label: string; value: NodeConnectionPosition }[] = [
+  { label: "右", value: "right" },
+  { label: "下", value: "down" },
+  { label: "左", value: "left" },
+  { label: "上", value: "up" },
+];

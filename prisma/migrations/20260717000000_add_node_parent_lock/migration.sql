@@ -1,0 +1,1 @@
+ALTER TABLE "nodes" ADD COLUMN "parent_locked" BOOLEAN NOT NULL DEFAULT false;
