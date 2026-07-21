@@ -316,20 +316,82 @@ function SkillMapMiniMap({
             y2={edge.y2}
           />
         ))}
-        {geometry.nodes.map((node) => (
-          <rect
-            fill="#2563eb"
-            height={node.height}
-            key={node.id}
-            opacity={node.selected ? 1 : 0.9}
-            rx="3"
-            stroke={node.selected ? "#ef4444" : "#1e40af"}
-            strokeWidth={node.selected ? 2 : 1}
-            width={node.width}
-            x={node.x}
-            y={node.y}
-          />
-        ))}
+        {geometry.nodes.map((node) => {
+          const colors = getMiniMapNodeColors(node);
+          const titleSize = Math.max(3.6, Math.min(6.5, node.height * 0.22));
+          const bodySize = Math.max(2.8, Math.min(4.8, node.height * 0.15));
+          const tagSize = Math.max(2.4, Math.min(3.8, node.height * 0.12));
+          const padding = Math.max(1.5, Math.min(4, node.width * 0.08));
+          const tagY = node.y + node.height - padding - tagSize;
+
+          return (
+            <g key={node.id}>
+              <rect
+                fill={colors.background}
+                height={node.height}
+                rx="3"
+                stroke={colors.border}
+                strokeWidth={node.selected ? 1.7 : 0.9}
+                width={node.width}
+                x={node.x}
+                y={node.y}
+              />
+              <text
+                fill="hsl(var(--card-foreground))"
+                fontSize={titleSize}
+                fontWeight="700"
+                x={node.x + padding}
+                y={node.y + padding + titleSize}
+              >
+                {truncateMiniMapText(node.label, Math.max(4, Math.floor(node.width / titleSize)))}
+              </text>
+              <text
+                fill="hsl(var(--muted-foreground))"
+                fontSize={bodySize}
+                x={node.x + padding}
+                y={node.y + padding + titleSize + bodySize + 1.5}
+              >
+                {truncateMiniMapText(
+                  node.description,
+                  Math.max(5, Math.floor(node.width / bodySize) - 2),
+                )}
+              </text>
+              {node.tags.slice(0, 2).map((tag, index) => {
+                const tagWidth = Math.min(
+                  node.width * 0.42,
+                  Math.max(8, tag.length * tagSize * 0.8 + 4),
+                );
+                const tagX = node.x + padding + index * (tagWidth + 2);
+
+                if (tagX + tagWidth > node.x + node.width - padding) {
+                  return null;
+                }
+
+                return (
+                  <g key={`${node.id}-${tag}`}>
+                    <rect
+                      fill="hsl(var(--secondary))"
+                      height={tagSize + 3}
+                      rx="1.5"
+                      width={tagWidth}
+                      x={tagX}
+                      y={tagY - tagSize}
+                    />
+                    <text
+                      fill="hsl(var(--secondary-foreground))"
+                      fontSize={tagSize}
+                      fontWeight="600"
+                      x={tagX + 2}
+                      y={tagY}
+                    >
+                      {truncateMiniMapText(tag, Math.max(2, Math.floor(tagWidth / tagSize)))}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
         <rect
           fill="none"
           height={geometry.viewport.height}
@@ -353,8 +415,14 @@ function createMiniMapGeometry(
   containerHeight: number,
 ) {
   const nodeRects = nodes.map((node) => ({
+    description: node.data.description,
     id: node.id,
+    isActiveSearchMatch: node.data.isActiveSearchMatch,
+    isSearchMatch: node.data.isSearchMatch,
+    label: node.data.label,
+    progressStatus: node.data.skillMapNode.progressStatus,
     selected: Boolean(node.selected),
+    tags: node.data.tags,
     x: node.position.x,
     y: node.position.y,
     width: FLOW_NODE_WIDTH,
@@ -412,11 +480,75 @@ function createMiniMapGeometry(
       .filter(isMiniMapEdge),
     nodes: nodeRects.map((node) => ({
       ...mapRect(node),
+      description: node.description,
       id: node.id,
+      isActiveSearchMatch: node.isActiveSearchMatch,
+      isSearchMatch: node.isSearchMatch,
+      label: node.label,
+      progressStatus: node.progressStatus,
       selected: node.selected,
+      tags: node.tags,
     })),
     viewport: mapRect(visibleRect),
   };
+}
+
+type MiniMapNode = {
+  description: string;
+  height: number;
+  id: string;
+  isActiveSearchMatch: boolean;
+  isSearchMatch: boolean;
+  label: string;
+  progressStatus: StudySkillMapNode["progressStatus"];
+  selected: boolean;
+  tags: string[];
+  width: number;
+  x: number;
+  y: number;
+};
+
+function getMiniMapNodeColors(node: MiniMapNode) {
+  if (node.isActiveSearchMatch) {
+    return {
+      background: "hsl(var(--destructive) / 0.12)",
+      border: "hsl(var(--destructive))",
+    };
+  }
+
+  if (node.isSearchMatch || node.selected) {
+    return {
+      background: "hsl(var(--primary) / 0.14)",
+      border: "hsl(var(--primary))",
+    };
+  }
+
+  if (node.progressStatus === "COMPLETED") {
+    return {
+      background: "hsl(var(--accent) / 0.12)",
+      border: "hsl(var(--accent))",
+    };
+  }
+
+  if (node.progressStatus === "LEARNING") {
+    return {
+      background: "hsl(var(--primary) / 0.12)",
+      border: "hsl(var(--primary))",
+    };
+  }
+
+  return {
+    background: "hsl(var(--card))",
+    border: "hsl(var(--border))",
+  };
+}
+
+function truncateMiniMapText(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
 }
 
 type MiniMapEdge = {
