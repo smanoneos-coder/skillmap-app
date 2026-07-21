@@ -33,11 +33,37 @@ function getSafeNextPath(value: string | null) {
   return value;
 }
 
-function getCallbackUrl(origin: string, nextPath: string) {
-  const callbackUrl = new URL("/auth/callback", origin);
+function getCallbackUrl(requestOrigin: string, nextPath: string) {
+  const callbackUrl = new URL("/auth/callback", getSiteUrl(requestOrigin));
   callbackUrl.searchParams.set("next", nextPath);
 
   return callbackUrl.toString();
+}
+
+function getSiteUrl(requestOrigin: string) {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+  if (!configuredSiteUrl) {
+    return normalizeSiteUrl(requestOrigin);
+  }
+
+  try {
+    return normalizeSiteUrl(configuredSiteUrl);
+  } catch {
+    return normalizeSiteUrl(requestOrigin);
+  }
+}
+
+function normalizeSiteUrl(value: string) {
+  const url = new URL(value);
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Invalid site URL protocol.");
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, "");
+
+  return `${url.origin}${pathname}`;
 }
 
 function logSafeAuthError(message: string, error: unknown) {

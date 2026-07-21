@@ -43,6 +43,7 @@ pnpm dev
 ```env
 DATABASE_URL=""
 DIRECT_URL=""
+NEXT_PUBLIC_SITE_URL=""
 NEXT_PUBLIC_SUPABASE_URL=""
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=""
 SKILLMAP_GENERATOR_MODE="mock"
@@ -120,3 +121,41 @@ SKILLMAP_GENERATOR_MODE="mock"
 ```env
 SKILLMAP_GENERATOR_MODE="openai"
 ```
+
+## Production URL and Google OAuth
+
+Set `NEXT_PUBLIC_SITE_URL` to the Vercel Production URL.
+
+```env
+NEXT_PUBLIC_SITE_URL="https://<your-production-domain>"
+```
+
+The app uses this value to build the Google OAuth callback URL:
+
+```text
+https://<your-production-domain>/auth/callback?next=/skillmaps
+```
+
+If `NEXT_PUBLIC_SITE_URL` is not set, the app falls back to the current request origin. This keeps local development working.
+
+In Supabase, configure:
+
+```text
+Authentication
+URL Configuration
+```
+
+Site URL:
+
+```text
+https://<your-production-domain>
+```
+
+Redirect URLs:
+
+```text
+https://<your-production-domain>/auth/callback
+http://localhost:3000/auth/callback
+```
+
+If you test Google login on Vercel Preview deployments, add the corresponding Preview callback URL as well.
