@@ -13,7 +13,6 @@ import { SkillMapListViewer } from "@/components/skillmap/skill-map-list-viewer"
 import {
   addStudySkillMapChildNode,
   addStudySkillMapRootNode,
-  autoArrangeStudySkillMap,
   deleteStudySkillMapNodeAtPathWithMode,
   getSkillMapProgressStats,
   reparentStudySkillMapNode,
@@ -24,6 +23,7 @@ import {
   updateStudySkillMapNodeStatus,
 } from "@/lib/skillmap-progress";
 import { createSkillMapFlowElements, type SkillMapFlowNode } from "@/lib/skillmap-flow";
+import { autoArrangeStudySkillMap } from "@/lib/skillmap-layout";
 import { getSkillMapNodeByPath, searchSkillMap } from "@/lib/skillmap-search";
 import type { ChildNodeDirection, NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { ProgressStatus } from "@/types/progress";
