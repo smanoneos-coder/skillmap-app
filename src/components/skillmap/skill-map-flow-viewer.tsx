@@ -7,8 +7,11 @@ import {
   ReactFlowProvider,
   type Connection,
   type NodeChange,
+  type OnNodeDrag,
   type Viewport,
+  useEdges,
   useReactFlow,
+  useNodes,
   useViewport,
 } from "@xyflow/react";
 import {
@@ -94,13 +97,12 @@ function SkillMapFlowCanvas({
   selectedRelatedEdgeId,
   skillMap,
 }: SkillMapFlowViewerProps) {
-  const { fitView } = useReactFlow();
-  const viewport = useViewport();
+  const { fitView, getNodes, setEdges, setNodes } =
+    useReactFlow<SkillMapFlowNode, SkillMapFlowEdge>();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [showMiniMap, setShowMiniMap] = useState(true);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const { nodes: flowNodes, edges } = useMemo(
+  const { nodes, edges } = useMemo(
     () =>
       createSkillMapFlowElements(skillMap, {
         activeSearchPath,
@@ -111,18 +113,18 @@ function SkillMapFlowCanvas({
       }),
     [activeSearchPath, editMode, relatedEdges, searchMatchPaths, selectedRelatedEdgeId, skillMap],
   );
-  const nodes = useMemo(
-    () =>
-      flowNodes.map((node) => ({
-        ...node,
-        selected: editMode && selectedNodeIds.has(node.id),
-      })),
-    [editMode, flowNodes, selectedNodeIds],
-  );
+  const isDraggingNodesRef = useRef(false);
+
+  useEffect(() => {
+    if (!isDraggingNodesRef.current) {
+      setNodes(nodes);
+    }
+
+    setEdges(edges);
+  }, [edges, nodes, setEdges, setNodes]);
 
   useEffect(() => {
     if (!editMode) {
-      setSelectedNodeIds(new Set());
       onSelectRelatedEdge(null);
     }
   }, [editMode, onSelectRelatedEdge]);
@@ -150,35 +152,31 @@ function SkillMapFlowCanvas({
     };
   }, []);
 
-  function handleNodesChange(changes: NodeChange<SkillMapFlowNode>[]) {
-    const selectionChanges = changes.filter((change) => change.type === "select");
+  const handleNodeDragStart: OnNodeDrag<SkillMapFlowNode> = () => {
+    isDraggingNodesRef.current = true;
+  };
 
-    if (selectionChanges.length > 0) {
-      setSelectedNodeIds((currentSelectedNodeIds) => {
-        const nextSelectedNodeIds = new Set(currentSelectedNodeIds);
+  const handleNodeDragStop: OnNodeDrag<SkillMapFlowNode> = (_event, node, draggedNodes) => {
+    isDraggingNodesRef.current = false;
 
-        for (const change of selectionChanges) {
-          if (change.selected) {
-            nextSelectedNodeIds.add(change.id);
-          } else {
-            nextSelectedNodeIds.delete(change.id);
-          }
-        }
+    const movedNodes = draggedNodes.length > 0 ? draggedNodes : [node];
+    const positionChanges: NodeChange<SkillMapFlowNode>[] = movedNodes.map((movedNode) => ({
+      id: movedNode.id,
+      position: movedNode.position,
+      type: "position",
+    }));
 
-        return nextSelectedNodeIds;
-      });
-    }
-
-    onNodePositionsChange(changes);
-  }
+    onNodePositionsChange(positionChanges);
+  };
 
   function handleConnect(connection: Connection) {
     if (!connection.source || !connection.target || connection.source === connection.target) {
       return;
     }
 
-    const sourceNode = flowNodes.find((node) => node.id === connection.source);
-    const targetNode = flowNodes.find((node) => node.id === connection.target);
+    const currentNodes = getNodes();
+    const sourceNode = currentNodes.find((node) => node.id === connection.source);
+    const targetNode = currentNodes.find((node) => node.id === connection.target);
     const sourceNodeId = sourceNode?.data.skillMapNode.nodeId;
     const targetNodeId = targetNode?.data.skillMapNode.nodeId;
 
@@ -239,21 +237,22 @@ function SkillMapFlowCanvas({
       </button>
       <ReactFlow
         colorMode="system"
+        defaultEdges={edges}
+        defaultNodes={nodes}
         deleteKeyCode={null}
-        edges={edges}
         fitView
         fitViewOptions={{
           padding: 0.2,
         }}
         maxZoom={1.6}
         minZoom={0.25}
-        nodes={nodes}
         nodesConnectable={editMode}
         nodesDraggable={editMode}
         nodeTypes={nodeTypes}
         onConnect={editMode ? handleConnect : undefined}
         onEdgeClick={editMode ? handleEdgeClick : undefined}
-        onNodesChange={editMode ? handleNodesChange : undefined}
+        onNodeDragStart={editMode ? handleNodeDragStart : undefined}
+        onNodeDragStop={editMode ? handleNodeDragStop : undefined}
         onNodeClick={handleNodeClick}
         multiSelectionKeyCode={["Meta", "Control", "Shift"]}
         panOnDrag
@@ -272,9 +271,6 @@ function SkillMapFlowCanvas({
         <SkillMapMiniMap
           containerHeight={containerSize.height}
           containerWidth={containerSize.width}
-          edges={edges}
-          nodes={nodes}
-          viewport={viewport}
         />
       ) : null}
     </div>
@@ -284,16 +280,13 @@ function SkillMapFlowCanvas({
 function SkillMapMiniMap({
   containerHeight,
   containerWidth,
-  edges,
-  nodes,
-  viewport,
 }: {
   containerHeight: number;
   containerWidth: number;
-  edges: SkillMapFlowEdge[];
-  nodes: SkillMapFlowNode[];
-  viewport: Viewport;
 }) {
+  const edges = useEdges<SkillMapFlowEdge>();
+  const nodes = useNodes<SkillMapFlowNode>();
+  const viewport = useViewport();
   const geometry = useMemo(
     () => createMiniMapGeometry(nodes, edges, viewport, containerWidth, containerHeight),
     [containerHeight, containerWidth, edges, nodes, viewport],

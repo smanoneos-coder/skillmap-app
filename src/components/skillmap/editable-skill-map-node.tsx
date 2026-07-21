@@ -1,10 +1,11 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { memo } from "react";
 
 import type { SkillMapFlowNode } from "@/lib/skillmap-flow";
 
-export function EditableSkillMapNode({ data, selected }: NodeProps<SkillMapFlowNode>) {
+function EditableSkillMapNodeComponent({ data, selected }: NodeProps<SkillMapFlowNode>) {
   return (
     <div
       className={`relative rounded-lg border bg-card p-3 text-left text-card-foreground shadow-sm ${
@@ -27,6 +28,26 @@ export function EditableSkillMapNode({ data, selected }: NodeProps<SkillMapFlowN
         </div>
       ) : null}
     </div>
+  );
+}
+
+export const EditableSkillMapNode = memo(EditableSkillMapNodeComponent, areNodePropsEqual);
+
+function areNodePropsEqual(
+  previousProps: NodeProps<SkillMapFlowNode>,
+  nextProps: NodeProps<SkillMapFlowNode>,
+) {
+  return (
+    previousProps.selected === nextProps.selected &&
+    previousProps.data.label === nextProps.data.label &&
+    previousProps.data.description === nextProps.data.description &&
+    previousProps.data.depth === nextProps.data.depth &&
+    previousProps.data.editMode === nextProps.data.editMode &&
+    previousProps.data.isActiveSearchMatch === nextProps.data.isActiveSearchMatch &&
+    previousProps.data.isSearchMatch === nextProps.data.isSearchMatch &&
+    previousProps.data.path === nextProps.data.path &&
+    previousProps.data.tags.length === nextProps.data.tags.length &&
+    previousProps.data.tags.every((tag, index) => tag === nextProps.data.tags[index])
   );
 }
 
