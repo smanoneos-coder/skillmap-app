@@ -6,10 +6,12 @@ import { memo } from "react";
 import type { SkillMapFlowNode } from "@/lib/skillmap-flow";
 
 function EditableSkillMapNodeComponent({ data, selected }: NodeProps<SkillMapFlowNode>) {
+  const relationshipClassName = getRelationshipClassName(data.relationshipHighlight);
+
   return (
     <div
-      className={`relative rounded-lg border bg-card p-3 text-left text-card-foreground shadow-sm ${
-        selected ? "ring-2 ring-ring" : ""
+      className={`relative rounded-lg border bg-card p-3 text-left text-card-foreground shadow-sm transition-shadow ${relationshipClassName} ${
+        selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
       }`}
     >
       <ConnectionHandles editMode={data.editMode} prefix="target" />
@@ -46,9 +48,22 @@ function areNodePropsEqual(
     previousProps.data.isActiveSearchMatch === nextProps.data.isActiveSearchMatch &&
     previousProps.data.isSearchMatch === nextProps.data.isSearchMatch &&
     previousProps.data.path === nextProps.data.path &&
+    previousProps.data.relationshipHighlight === nextProps.data.relationshipHighlight &&
     previousProps.data.tags.length === nextProps.data.tags.length &&
     previousProps.data.tags.every((tag, index) => tag === nextProps.data.tags[index])
   );
+}
+
+function getRelationshipClassName(relationshipHighlight: SkillMapFlowNode["data"]["relationshipHighlight"]) {
+  if (relationshipHighlight === "parent") {
+    return "border-red-500 ring-2 ring-red-500/70 ring-offset-2 ring-offset-background";
+  }
+
+  if (relationshipHighlight === "child") {
+    return "border-emerald-500 ring-2 ring-emerald-500/70 ring-offset-2 ring-offset-background";
+  }
+
+  return "";
 }
 
 function ConnectionHandles({

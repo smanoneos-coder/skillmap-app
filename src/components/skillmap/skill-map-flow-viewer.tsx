@@ -42,6 +42,7 @@ type SkillMapFlowViewerProps = {
   relatedEdges: StudySkillMapEdge[];
   searchMatchPaths: Set<string>;
   selectedRelatedEdgeId: string | null;
+  selectedNodePath: string | null;
   skillMap: StudySkillMapNode;
 };
 
@@ -65,6 +66,7 @@ export function SkillMapFlowViewer({
   relatedEdges,
   searchMatchPaths,
   selectedRelatedEdgeId,
+  selectedNodePath,
   skillMap,
 }: SkillMapFlowViewerProps) {
   return (
@@ -79,6 +81,7 @@ export function SkillMapFlowViewer({
         relatedEdges={relatedEdges}
         searchMatchPaths={searchMatchPaths}
         selectedRelatedEdgeId={selectedRelatedEdgeId}
+        selectedNodePath={selectedNodePath}
         skillMap={skillMap}
       />
     </ReactFlowProvider>
@@ -95,6 +98,7 @@ function SkillMapFlowCanvas({
   relatedEdges,
   searchMatchPaths,
   selectedRelatedEdgeId,
+  selectedNodePath,
   skillMap,
 }: SkillMapFlowViewerProps) {
   const { fitView, getNodes, setEdges, setNodes } =
@@ -110,8 +114,17 @@ function SkillMapFlowCanvas({
         relatedEdges,
         searchMatchPaths,
         selectedRelatedEdgeId,
+        selectedNodePath,
       }),
-    [activeSearchPath, editMode, relatedEdges, searchMatchPaths, selectedRelatedEdgeId, skillMap],
+    [
+      activeSearchPath,
+      editMode,
+      relatedEdges,
+      searchMatchPaths,
+      selectedNodePath,
+      selectedRelatedEdgeId,
+      skillMap,
+    ],
   );
   const isDraggingNodesRef = useRef(false);
 
@@ -224,7 +237,7 @@ function SkillMapFlowCanvas({
 
   return (
     <div
-      className="relative h-[460px] min-h-[360px] overflow-hidden rounded-lg border bg-background sm:h-[560px]"
+      className="relative h-[560px] min-h-[460px] overflow-hidden rounded-lg border bg-background lg:h-[calc(100vh-250px)] xl:h-[calc(100vh-230px)]"
       ref={containerRef}
     >
       <button

@@ -1,28 +1,40 @@
 import { Sparkles } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { SkillMapGenerator } from "@/components/skillmap/skill-map-generator";
+import { Button } from "@/components/ui/button";
+import { getAuthenticatedUserForPage } from "@/lib/auth";
 
-export default function Home() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const user = await getAuthenticatedUserForPage();
+
+  if (user) {
+    redirect("/skillmaps");
+  }
+
   return (
-    <main className="min-h-screen bg-background px-4 py-4 sm:px-5">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1920px] flex-col gap-4">
-        <header className="flex shrink-0 flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="mb-1 inline-flex items-center gap-2 text-xs text-muted-foreground">
-              <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
-              2週間MVP
-            </div>
-            <h1 className="text-xl font-semibold">SkillMap AI</h1>
-          </div>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            テーマ入力、保存済みマップ、入力例、スキルマップ、編集Drawerを一画面で扱えます。
-          </p>
-        </header>
-
-        <section className="min-h-0 flex-1">
-          <SkillMapGenerator initialSavedSkillMaps={[]} />
-        </section>
-      </div>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <section className="w-full max-w-xl rounded-lg border bg-card p-6 text-card-foreground shadow-sm sm:p-8">
+        <div className="mb-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
+          2週間MVP
+        </div>
+        <h1 className="text-3xl font-semibold tracking-normal">SkillMap AI</h1>
+        <p className="mt-4 text-sm leading-7 text-muted-foreground">
+          テーマを入力してAIスキルマップを生成するには、Googleアカウントでログインしてください。
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Button asChild>
+            <Link href="/auth/login">Googleでログイン</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/skillmaps">マップ画面へ</Link>
+          </Button>
+        </div>
+      </section>
     </main>
   );
 }

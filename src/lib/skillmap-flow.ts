@@ -13,6 +13,7 @@ export type SkillMapFlowNodeData = {
   path: string;
   isActiveSearchMatch: boolean;
   isSearchMatch: boolean;
+  relationshipHighlight: "parent" | "child" | null;
   skillMapNode: StudySkillMapNode;
 };
 
@@ -41,6 +42,7 @@ export function createSkillMapFlowElements(
     relatedEdges?: StudySkillMapEdge[];
     searchMatchPaths?: Set<string>;
     selectedRelatedEdgeId?: string | null;
+    selectedNodePath?: string | null;
   } = {},
 ): SkillMapFlowElements {
   const nodes: SkillMapFlowNode[] = [];
@@ -60,6 +62,10 @@ export function createSkillMapFlowElements(
     );
     const isSearchMatch = options.searchMatchPaths?.has(indexPath) ?? false;
     const isActiveSearchMatch = options.activeSearchPath === indexPath;
+    const relationshipHighlight = getRelationshipHighlight(
+      indexPath,
+      options.selectedNodePath ?? null,
+    );
 
     const layoutY =
       childYPositions.length > 0
@@ -83,6 +89,7 @@ export function createSkillMapFlowElements(
         path: indexPath,
         isActiveSearchMatch,
         isSearchMatch,
+        relationshipHighlight,
         skillMapNode: node,
       },
       sourcePosition: Position.Right,
@@ -90,18 +97,20 @@ export function createSkillMapFlowElements(
       style: {
         width: NODE_WIDTH,
         borderRadius: 8,
-        borderColor: isActiveSearchMatch
-          ? "hsl(var(--destructive))"
-          : isSearchMatch
-            ? "hsl(var(--primary))"
-            : getNodeBorderColor(node.progressStatus),
-        background: isActiveSearchMatch
-          ? "hsl(var(--destructive) / 0.12)"
-          : isSearchMatch
-            ? "hsl(var(--primary) / 0.16)"
-            : getNodeBackground(node.progressStatus),
+        borderColor: getNodeFlowBorderColor({
+          isActiveSearchMatch,
+          isSearchMatch,
+          relationshipHighlight,
+          status: node.progressStatus,
+        }),
+        background: getNodeFlowBackground({
+          isActiveSearchMatch,
+          isSearchMatch,
+          relationshipHighlight,
+          status: node.progressStatus,
+        }),
         color: "hsl(var(--card-foreground))",
-        boxShadow: "0 1px 2px rgb(15 23 42 / 0.08)",
+        boxShadow: getNodeFlowBoxShadow(relationshipHighlight),
         fontSize: 13,
         fontWeight: depth === 0 ? 700 : 600,
         padding: 12,
@@ -219,6 +228,102 @@ function getNodeBackground(status: StudySkillMapNode["progressStatus"]) {
   }
 
   return "hsl(var(--card))";
+}
+
+function getNodeFlowBorderColor({
+  isActiveSearchMatch,
+  isSearchMatch,
+  relationshipHighlight,
+  status,
+}: {
+  isActiveSearchMatch: boolean;
+  isSearchMatch: boolean;
+  relationshipHighlight: SkillMapFlowNodeData["relationshipHighlight"];
+  status: StudySkillMapNode["progressStatus"];
+}) {
+  if (isActiveSearchMatch) {
+    return "hsl(var(--destructive))";
+  }
+
+  if (relationshipHighlight === "parent") {
+    return "rgb(239 68 68)";
+  }
+
+  if (relationshipHighlight === "child") {
+    return "rgb(16 185 129)";
+  }
+
+  if (isSearchMatch) {
+    return "hsl(var(--primary))";
+  }
+
+  return getNodeBorderColor(status);
+}
+
+function getNodeFlowBackground({
+  isActiveSearchMatch,
+  isSearchMatch,
+  relationshipHighlight,
+  status,
+}: {
+  isActiveSearchMatch: boolean;
+  isSearchMatch: boolean;
+  relationshipHighlight: SkillMapFlowNodeData["relationshipHighlight"];
+  status: StudySkillMapNode["progressStatus"];
+}) {
+  if (isActiveSearchMatch) {
+    return "hsl(var(--destructive) / 0.12)";
+  }
+
+  if (relationshipHighlight === "parent") {
+    return "rgb(254 242 242)";
+  }
+
+  if (relationshipHighlight === "child") {
+    return "rgb(236 253 245)";
+  }
+
+  if (isSearchMatch) {
+    return "hsl(var(--primary) / 0.16)";
+  }
+
+  return getNodeBackground(status);
+}
+
+function getNodeFlowBoxShadow(relationshipHighlight: SkillMapFlowNodeData["relationshipHighlight"]) {
+  if (relationshipHighlight === "parent") {
+    return "0 0 0 3px rgb(239 68 68 / 0.35), 0 8px 18px rgb(239 68 68 / 0.16)";
+  }
+
+  if (relationshipHighlight === "child") {
+    return "0 0 0 3px rgb(16 185 129 / 0.35), 0 8px 18px rgb(16 185 129 / 0.16)";
+  }
+
+  return "0 1px 2px rgb(15 23 42 / 0.08)";
+}
+
+function getRelationshipHighlight(path: string, selectedPath: string | null) {
+  if (!selectedPath || path === selectedPath) {
+    return null;
+  }
+
+  const selectedParts = selectedPath.split("-");
+  const pathParts = path.split("-");
+  const parentPath =
+    selectedParts.length > 1 ? selectedParts.slice(0, selectedParts.length - 1).join("-") : null;
+
+  if (parentPath && path === parentPath) {
+    return "parent";
+  }
+
+  if (
+    pathParts.length === selectedParts.length + 1 &&
+    pathParts.slice(0, selectedParts.length).join("-") === selectedPath
+  ) {
+    return "child";
+  }
+
+  return null;
 }
 
 function getEdgePositions(

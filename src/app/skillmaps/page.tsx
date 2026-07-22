@@ -14,10 +14,10 @@ export default async function SkillMapsPage() {
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6">
-        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-card-foreground">
+        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
           <h1 className="mb-2 text-2xl font-semibold">ログインが必要です</h1>
-          <p className="mb-6 text-sm text-muted-foreground">
-            マイマップを見るにはGoogleアカウントでログインしてください。
+          <p className="mb-6 text-sm leading-6 text-muted-foreground">
+            マイマップを開くにはGoogleアカウントでログインしてください。
           </p>
           <Button asChild>
             <Link href="/auth/login">Googleでログイン</Link>

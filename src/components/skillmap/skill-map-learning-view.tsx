@@ -592,9 +592,9 @@ export function SkillMapLearningView({
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0 space-y-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0 space-y-2">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-2">
           <p className="text-sm text-muted-foreground">ノードをクリックすると詳細を表示します。</p>
           <div className="flex flex-wrap items-center gap-3">
@@ -627,15 +627,15 @@ export function SkillMapLearningView({
           ) : null}
         </div>
 
-        <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border bg-background p-3 xl:max-w-md">
-          <label className="flex items-center gap-2 text-sm font-medium" htmlFor="skillmap-search">
+        <div className="flex w-full min-w-0 flex-col gap-1 rounded-lg border bg-background p-2 xl:max-w-sm">
+          <label className="sr-only" htmlFor="skillmap-search">
             <Search aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             マップ内検索
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative min-w-0 flex-1">
               <input
-                className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 pr-10 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 pr-10 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 id="skillmap-search"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="タイトル・説明を検索"
@@ -656,7 +656,7 @@ export function SkillMapLearningView({
             <div className="flex gap-2">
               <button
                 aria-label="前の検索結果へ移動"
-                className="h-10 rounded-md border px-3 text-sm disabled:opacity-50"
+                className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
                 disabled={searchResults.length === 0}
                 onClick={() => moveSearchResult("previous")}
                 type="button"
@@ -665,7 +665,7 @@ export function SkillMapLearningView({
               </button>
               <button
                 aria-label="次の検索結果へ移動"
-                className="h-10 rounded-md border px-3 text-sm disabled:opacity-50"
+                className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
                 disabled={searchResults.length === 0}
                 onClick={() => moveSearchResult("next")}
                 type="button"
@@ -707,12 +707,12 @@ export function SkillMapLearningView({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2">
         {editMode ? (
           <>
             <span className="text-sm font-medium">編集モード</span>
             <button
-              className="rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+              className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
               disabled={isSavingGraph}
               onClick={saveGraph}
               type="button"
@@ -720,7 +720,7 @@ export function SkillMapLearningView({
               {isSavingGraph ? "保存中" : "変更を保存"}
             </button>
             <button
-              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={isSavingGraph}
               onClick={cancelEditMode}
               type="button"
@@ -728,7 +728,7 @@ export function SkillMapLearningView({
               キャンセル
             </button>
             <button
-              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={isSavingGraph || countVisibleSkillMapNodes(visibleSkillMap) >= 50}
               onClick={handleAddRootNode}
               type="button"
@@ -736,7 +736,7 @@ export function SkillMapLearningView({
               独立ノード追加
             </button>
             <button
-              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={isSavingGraph}
               onClick={handleAutoArrange}
               type="button"
@@ -744,7 +744,7 @@ export function SkillMapLearningView({
               4方向自動整列
             </button>
             <button
-              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={isSavingGraph || !selectedRelatedEdge}
               onClick={handleDeleteSelectedRelatedEdge}
               type="button"
@@ -758,7 +758,7 @@ export function SkillMapLearningView({
         ) : (
           <>
             <button
-              className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={!savedSkillMapId}
               onClick={startEditMode}
               type="button"
@@ -783,6 +783,7 @@ export function SkillMapLearningView({
           relatedEdges={visibleRelatedEdges}
           searchMatchPaths={searchMatchPaths}
           selectedRelatedEdgeId={selectedRelatedEdgeId}
+          selectedNodePath={selectedNodePath}
           skillMap={visibleSkillMap}
         />
       ) : (

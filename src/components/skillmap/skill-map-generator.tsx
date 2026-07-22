@@ -404,7 +404,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-7rem)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid min-h-[calc(100vh-6rem)] gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
       <form
         aria-busy={isGenerating}
@@ -531,9 +531,9 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
 
       <main className="min-w-0">
       {skillMap ? (
-        <section className="space-y-4">
-          <div className="rounded-lg border bg-card p-4 sm:p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <section className="space-y-3">
+          <div className="rounded-lg border bg-card p-3 sm:p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold">スキルマップ</h3>
                 <span
@@ -555,7 +555,7 @@ export function SkillMapGenerator({ initialSavedSkillMaps }: SkillMapGeneratorPr
                 ) : null}
               </div>
             </div>
-            <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
               <Button
                 className="gap-2"
                 disabled={isBusy || savedSkillMapId !== null}
