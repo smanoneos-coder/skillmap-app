@@ -11,7 +11,7 @@ import {
   generateSkillMapRequestSchema,
   validateGeneratedSkillMapTree,
 } from "@/lib/skillmap-schema";
-import { listSavedSkillMaps, saveSkillMap } from "@/lib/skillmap-repository";
+import { listSavedSkillMaps, saveSkillMap, SkillMapPersistenceError } from "@/lib/skillmap-repository";
 
 export const runtime = "nodejs";
 
@@ -59,11 +59,21 @@ export async function POST(request: Request) {
     return apiError("BAD_REQUEST", treeValidation.message, 400);
   }
 
-  const savedSkillMap = await saveSkillMap({
-    userId: authResult.user.id,
-    prompt: parsedRequest.data.prompt,
-    skillMap: parsedRequest.data.data,
-  });
+  let savedSkillMap;
+
+  try {
+    savedSkillMap = await saveSkillMap({
+      userId: authResult.user.id,
+      prompt: parsedRequest.data.prompt,
+      skillMap: parsedRequest.data.data,
+    });
+  } catch (error) {
+    if (error instanceof SkillMapPersistenceError) {
+      return apiError(error.code, error.message, error.status);
+    }
+
+    return apiError("INTERNAL_ERROR", "Skill map could not be saved.", 500);
+  }
 
   return Response.json(
     {

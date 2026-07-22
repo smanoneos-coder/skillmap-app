@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | "OPENAI_AUTH_FAILED"
   | "OPENAI_MODEL_NOT_FOUND"
   | "GENERATOR_INVALID_RESPONSE"
+  | "DATABASE_ERROR"
   | "INTERNAL_ERROR";
 
 export function apiError(code: ApiErrorCode, message: string, status: number) {

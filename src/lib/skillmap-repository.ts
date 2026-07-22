@@ -1,5 +1,6 @@
 import { Prisma, type Node as PrismaNode, type ProgressStatus } from "@prisma/client";
 
+import type { ApiErrorCode } from "@/lib/api-errors";
 import { prisma } from "@/lib/prisma";
 import { MAX_SKILLMAP_DEPTH, MAX_SKILLMAP_NODES } from "@/lib/skillmap-schema";
 import type { GeneratedSkillMap } from "@/lib/skillmap-schema";
@@ -33,36 +34,46 @@ export type SkillMapGraphRelatedEdgeInput = {
 };
 
 export async function saveSkillMap({ userId, prompt, skillMap }: SaveSkillMapInput) {
-  return prisma.$transaction(async (tx) => {
-    const savedSkillMap = await tx.skillMap.create({
-      data: {
-        title: skillMap.title,
-        prompt,
-        userId,
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const savedSkillMap = await tx.skillMap.create({
+          data: {
+            title: skillMap.title,
+            prompt,
+            userId,
+          },
+        });
+
+        await createNodeTree(tx, {
+          skillMapId: savedSkillMap.id,
+          parentId: null,
+          node: skillMap,
+          order: 0,
+        });
+
+        const nodeCount = await tx.node.count({
+          where: {
+            skillMapId: savedSkillMap.id,
+          },
+        });
+
+        return toSavedSkillMapSummary({
+          id: savedSkillMap.id,
+          title: savedSkillMap.title,
+          prompt: savedSkillMap.prompt,
+          createdAt: savedSkillMap.createdAt,
+          nodeCount,
+        });
       },
-    });
-
-    await createNodeTree(tx, {
-      skillMapId: savedSkillMap.id,
-      parentId: null,
-      node: skillMap,
-      order: 0,
-    });
-
-    const nodeCount = await tx.node.count({
-      where: {
-        skillMapId: savedSkillMap.id,
+      {
+        maxWait: 15_000,
+        timeout: 60_000,
       },
-    });
-
-    return toSavedSkillMapSummary({
-      id: savedSkillMap.id,
-      title: savedSkillMap.title,
-      prompt: savedSkillMap.prompt,
-      createdAt: savedSkillMap.createdAt,
-      nodeCount,
-    });
-  });
+    );
+  } catch (error) {
+    throw mapSkillMapPersistenceError(error);
+  }
 }
 
 export async function listSavedSkillMaps(userId: string): Promise<SavedSkillMapSummary[]> {
@@ -943,6 +954,48 @@ export class SkillMapGraphValidationError extends Error {
     super(message);
     this.name = "SkillMapGraphValidationError";
   }
+}
+
+export class SkillMapPersistenceError extends Error {
+  readonly code: ApiErrorCode;
+  readonly status: number;
+
+  constructor(code: ApiErrorCode, message: string, status: number) {
+    super(message);
+    this.name = "SkillMapPersistenceError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+function mapSkillMapPersistenceError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2021" || error.code === "P2022") {
+      return new SkillMapPersistenceError(
+        "DATABASE_ERROR",
+        "Database schema is not ready. Run Prisma migrations for the production database.",
+        500,
+      );
+    }
+
+    if (error.code === "P2003") {
+      return new SkillMapPersistenceError(
+        "DATABASE_ERROR",
+        "Database relation check failed. Please sign in again and retry.",
+        500,
+      );
+    }
+
+    if (error.code === "P2028") {
+      return new SkillMapPersistenceError(
+        "DATABASE_ERROR",
+        "Database transaction timed out while saving the skill map. Please retry.",
+        503,
+      );
+    }
+  }
+
+  return new SkillMapPersistenceError("DATABASE_ERROR", "Skill map could not be saved.", 500);
 }
 
 function assertGraphHasNoCycles(nodes: SkillMapGraphNodeInput[]) {
