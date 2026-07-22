@@ -21,28 +21,7 @@ export async function generateOpenAISkillMap(theme: string) {
 
   try {
     const openai = createOpenAIClient();
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: buildSkillMapSystemPrompt(),
-        },
-        {
-          role: "user",
-          content: buildSkillMapUserPrompt(theme),
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "skill_map",
-          strict: true,
-          schema: generatedSkillMapJsonSchema,
-        },
-      },
-      temperature: 0.2,
-    });
+    const completion = await createSkillMapCompletion(openai, model, theme);
 
     const content = completion.choices[0]?.message.content;
 
@@ -72,6 +51,60 @@ export async function generateOpenAISkillMap(theme: string) {
   }
 }
 
+async function createSkillMapCompletion(openai: OpenAI, model: string, theme: string) {
+  const messages = [
+    {
+      role: "system" as const,
+      content: buildSkillMapSystemPrompt(),
+    },
+    {
+      role: "user" as const,
+      content: buildSkillMapUserPrompt(theme),
+    },
+  ];
+
+  try {
+    return await openai.chat.completions.create({
+      model,
+      messages,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "skill_map",
+          strict: true,
+          schema: generatedSkillMapJsonSchema,
+        },
+      },
+    });
+  } catch (error) {
+    if (!shouldRetryWithJsonMode(error)) {
+      throw error;
+    }
+
+    return openai.chat.completions.create({
+      model,
+      messages,
+      response_format: {
+        type: "json_object",
+      },
+    });
+  }
+}
+
+function shouldRetryWithJsonMode(error: unknown) {
+  if (!(error instanceof OpenAI.APIError) || error.status !== 400) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes("json_schema") ||
+    message.includes("response_format") ||
+    message.includes("schema")
+  );
+}
+
 function parseGeneratedJson(content: string) {
   try {
     return JSON.parse(content) as unknown;
@@ -86,6 +119,30 @@ function parseGeneratedJson(content: string) {
 
 function mapOpenAIError(error: unknown) {
   if (error instanceof OpenAI.APIError) {
+    if (error.status === 400) {
+      return new SkillMapGenerationError(
+        "OPENAI_BAD_REQUEST",
+        "AI model or response format is not supported. Check OPENAI_MODEL.",
+        502,
+      );
+    }
+
+    if (error.status === 401 || error.status === 403) {
+      return new SkillMapGenerationError(
+        "OPENAI_AUTH_FAILED",
+        "OpenAI API authentication failed. Check OPENAI_API_KEY.",
+        502,
+      );
+    }
+
+    if (error.status === 404) {
+      return new SkillMapGenerationError(
+        "OPENAI_MODEL_NOT_FOUND",
+        "OpenAI model was not found. Check OPENAI_MODEL.",
+        502,
+      );
+    }
+
     if (error.status === 429) {
       return new SkillMapGenerationError(
         "OPENAI_RATE_LIMITED",
