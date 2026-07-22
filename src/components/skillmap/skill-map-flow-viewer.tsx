@@ -255,7 +255,8 @@ function SkillMapFlowCanvas({
         deleteKeyCode={null}
         fitView
         fitViewOptions={{
-          padding: 0.2,
+          maxZoom: 0.9,
+          padding: 0.35,
         }}
         maxZoom={1.6}
         minZoom={0.25}
@@ -306,7 +307,7 @@ function SkillMapMiniMap({
   );
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 overflow-hidden rounded-lg border border-border bg-card p-2 shadow-lg">
+    <div className="absolute left-3 top-14 z-10 overflow-hidden rounded-lg border border-border bg-card p-2 shadow-lg">
       <svg
         aria-label="ミニマップ"
         className="block"
