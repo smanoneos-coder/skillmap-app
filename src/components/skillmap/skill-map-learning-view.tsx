@@ -41,6 +41,11 @@ type SkillMapLearningViewProps = {
 type SkillMapViewMode = "map" | "list";
 type DeleteNodeMode = "subtree" | "single";
 
+type EditHistorySnapshot = {
+  skillMap: StudySkillMapNode;
+  relatedEdges: StudySkillMapEdge[];
+};
+
 type SaveGraphResponse = {
   data: {
     skillMap: StudySkillMapNode;
@@ -72,6 +77,8 @@ export function SkillMapLearningView({
   const [editMode, setEditMode] = useState(false);
   const [draftSkillMap, setDraftSkillMap] = useState<StudySkillMapNode | null>(null);
   const [draftRelatedEdges, setDraftRelatedEdges] = useState<StudySkillMapEdge[] | null>(null);
+  const [undoStack, setUndoStack] = useState<EditHistorySnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<EditHistorySnapshot[]>([]);
   const [isSavingGraph, setIsSavingGraph] = useState(false);
 
   const visibleSkillMap = draftSkillMap ?? skillMap;
@@ -106,6 +113,8 @@ export function SkillMapLearningView({
     setEditMode(false);
     setDraftSkillMap(null);
     setDraftRelatedEdges(null);
+    setUndoStack([]);
+    setRedoStack([]);
     setQuery("");
     setActiveSearchIndex(0);
   }, [mapKey]);
@@ -125,6 +134,18 @@ export function SkillMapLearningView({
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
       if (isEditableShortcutTarget(event.target)) {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          redoDraftChange();
+        } else {
+          undoDraftChange();
+        }
+
         return;
       }
 
@@ -242,6 +263,61 @@ export function SkillMapLearningView({
     };
   }
 
+  function commitDraftChange(
+    currentState: EditHistorySnapshot,
+    nextState: EditHistorySnapshot,
+  ) {
+    setUndoStack((currentStack) => [...currentStack, cloneEditHistorySnapshot(currentState)]);
+    setRedoStack([]);
+    setDraftSkillMap(nextState.skillMap);
+    setDraftRelatedEdges(nextState.relatedEdges);
+  }
+
+  function undoDraftChange() {
+    if (!draftSkillMap || undoStack.length === 0) {
+      return;
+    }
+
+    const previousState = undoStack[undoStack.length - 1];
+    const currentState = createEditHistorySnapshot(draftSkillMap, visibleRelatedEdges);
+
+    setUndoStack((currentStack) => currentStack.slice(0, -1));
+    setRedoStack((currentStack) => [...currentStack, currentState]);
+    restoreDraftSnapshot(previousState);
+  }
+
+  function redoDraftChange() {
+    if (!draftSkillMap || redoStack.length === 0) {
+      return;
+    }
+
+    const nextState = redoStack[redoStack.length - 1];
+    const currentState = createEditHistorySnapshot(draftSkillMap, visibleRelatedEdges);
+
+    setRedoStack((currentStack) => currentStack.slice(0, -1));
+    setUndoStack((currentStack) => [...currentStack, currentState]);
+    restoreDraftSnapshot(nextState);
+  }
+
+  function restoreDraftSnapshot(snapshot: EditHistorySnapshot) {
+    setDraftSkillMap(snapshot.skillMap);
+    setDraftRelatedEdges(snapshot.relatedEdges);
+    setSelectedRelatedEdgeId(null);
+
+    if (!selectedNodePath) {
+      setSelectedNode(null);
+      return;
+    }
+
+    const nextSelectedNode = getSkillMapNodeByPath(snapshot.skillMap, selectedNodePath);
+
+    setSelectedNode(nextSelectedNode);
+
+    if (!nextSelectedNode) {
+      setSelectedNodePath(null);
+    }
+  }
+
   function handleUpdateNodeDetails(input: {
     title: string;
     description: string;
@@ -277,7 +353,10 @@ export function SkillMapLearningView({
         description,
         tags,
       });
-      setDraftSkillMap(nextSkillMap);
+      commitDraftChange(editState, {
+        relatedEdges: editState.relatedEdges,
+        skillMap: nextSkillMap,
+      });
       setSelectedNode(getSkillMapNodeByPath(nextSkillMap, selectedNodePath));
     } finally {
       setIsEditingNode(false);
@@ -311,7 +390,10 @@ export function SkillMapLearningView({
     const nextSelectedPath =
       selectedNode?.nodeId ? findStudySkillMapNodePathByNodeId(nextSkillMap, selectedNode.nodeId) : null;
 
-    setDraftSkillMap(nextSkillMap);
+    commitDraftChange(editState, {
+      relatedEdges: editState.relatedEdges,
+      skillMap: nextSkillMap,
+    });
     setSelectedNodePath(nextSelectedPath);
     setSelectedNode(nextSelectedPath ? getSkillMapNodeByPath(nextSkillMap, nextSelectedPath) : null);
     setNodeEditError(null);
@@ -331,7 +413,10 @@ export function SkillMapLearningView({
       position,
     );
 
-    setDraftSkillMap(nextSkillMap);
+    commitDraftChange(editState, {
+      relatedEdges: editState.relatedEdges,
+      skillMap: nextSkillMap,
+    });
     setSelectedNode(getSkillMapNodeByPath(nextSkillMap, selectedNodePath));
     setNodeEditError(null);
   }
@@ -380,8 +465,10 @@ export function SkillMapLearningView({
         (edge) => !removedNodeIds.has(edge.nodeAId) && !removedNodeIds.has(edge.nodeBId),
       );
 
-      setDraftSkillMap(nextSkillMap);
-      setDraftRelatedEdges(nextRelatedEdges);
+      commitDraftChange(editState, {
+        relatedEdges: nextRelatedEdges,
+        skillMap: nextSkillMap,
+      });
       setSelectedNode(null);
       setSelectedNodePath(null);
       setSelectedRelatedEdgeId(null);
@@ -419,8 +506,10 @@ export function SkillMapLearningView({
         (edge) => !removedNodeIds.has(edge.nodeAId) && !removedNodeIds.has(edge.nodeBId),
       );
 
-      setDraftSkillMap(nextSkillMap);
-      setDraftRelatedEdges(nextRelatedEdges);
+      commitDraftChange(editState, {
+        relatedEdges: nextRelatedEdges,
+        skillMap: nextSkillMap,
+      });
       setSelectedNode(null);
       setSelectedNodePath(null);
       setSelectedRelatedEdgeId(null);
@@ -488,7 +577,10 @@ export function SkillMapLearningView({
         : addStudySkillMapRootNode(editState.skillMap, nextNode);
       const nextSelectedPath = nextChildPath ?? nextRootPath;
 
-      setDraftSkillMap(nextSkillMap);
+      commitDraftChange(editState, {
+        relatedEdges: editState.relatedEdges,
+        skillMap: nextSkillMap,
+      });
       setSelectedNode(getSkillMapNodeByPath(nextSkillMap, nextSelectedPath) ?? nextNode);
       setSelectedNodePath(nextSelectedPath);
     } finally {
@@ -504,6 +596,8 @@ export function SkillMapLearningView({
 
     setDraftSkillMap(cloneStudySkillMap(skillMap));
     setDraftRelatedEdges(cloneRelatedEdges(relatedEdges));
+    setUndoStack([]);
+    setRedoStack([]);
     setEditMode(true);
     setSelectedRelatedEdgeId(null);
     setGraphEditError(null);
@@ -516,6 +610,8 @@ export function SkillMapLearningView({
 
     setDraftSkillMap(null);
     setDraftRelatedEdges(null);
+    setUndoStack([]);
+    setRedoStack([]);
     setEditMode(false);
     setGraphEditError(null);
     setSelectedNode(null);
@@ -557,6 +653,8 @@ export function SkillMapLearningView({
       onChangeRelatedEdges(parsedPayload.data.relatedEdges);
       setDraftSkillMap(null);
       setDraftRelatedEdges(null);
+      setUndoStack([]);
+      setRedoStack([]);
       setEditMode(false);
       setSelectedNode(null);
       setSelectedNodePath(null);
@@ -569,16 +667,11 @@ export function SkillMapLearningView({
   }
 
   function handleNodePositionsChange(changes: NodeChange<SkillMapFlowNode>[]) {
-    if (!editMode) {
+    if (!editMode || !draftSkillMap) {
       return;
     }
 
-    setDraftSkillMap((currentDraft) => {
-      if (!currentDraft) {
-        return currentDraft;
-      }
-
-      return changes.reduce((nextSkillMap, change) => {
+    const nextSkillMap = changes.reduce((nextSkillMap, change) => {
         if (change.type !== "position" || !change.position) {
           return nextSkillMap;
         }
@@ -588,8 +681,22 @@ export function SkillMapLearningView({
           getPathFromFlowNodeId(change.id),
           change.position,
         );
-      }, currentDraft);
-    });
+      }, draftSkillMap);
+
+    if (nextSkillMap === draftSkillMap) {
+      return;
+    }
+
+    commitDraftChange(
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: draftSkillMap,
+      },
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: nextSkillMap,
+      },
+    );
   }
 
   function handleAutoArrange() {
@@ -598,7 +705,16 @@ export function SkillMapLearningView({
       return;
     }
 
-    setDraftSkillMap(autoArrangeStudySkillMap(visibleSkillMap));
+    commitDraftChange(
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: draftSkillMap,
+      },
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: autoArrangeStudySkillMap(visibleSkillMap),
+      },
+    );
     setSelectedRelatedEdgeId(null);
     setGraphEditError(null);
   }
@@ -638,7 +754,16 @@ export function SkillMapLearningView({
       },
     ];
 
-    setDraftRelatedEdges(nextRelatedEdges);
+    commitDraftChange(
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: draftSkillMap,
+      },
+      {
+        relatedEdges: nextRelatedEdges,
+        skillMap: draftSkillMap,
+      },
+    );
     setSelectedRelatedEdgeId(null);
     setGraphEditError(null);
   }
@@ -658,7 +783,16 @@ export function SkillMapLearningView({
       return;
     }
 
-    setDraftRelatedEdges(visibleRelatedEdges.filter((edge) => edge.id !== selectedRelatedEdge.id));
+    commitDraftChange(
+      {
+        relatedEdges: visibleRelatedEdges,
+        skillMap: visibleSkillMap,
+      },
+      {
+        relatedEdges: visibleRelatedEdges.filter((edge) => edge.id !== selectedRelatedEdge.id),
+        skillMap: visibleSkillMap,
+      },
+    );
     setSelectedRelatedEdgeId(null);
     setGraphEditError(null);
   }
@@ -1123,6 +1257,20 @@ function cloneStudySkillMap(skillMap: StudySkillMapNode): StudySkillMapNode {
 
 function cloneRelatedEdges(edges: StudySkillMapEdge[]) {
   return edges.map((edge) => ({ ...edge }));
+}
+
+function createEditHistorySnapshot(
+  skillMap: StudySkillMapNode,
+  relatedEdges: StudySkillMapEdge[],
+): EditHistorySnapshot {
+  return {
+    relatedEdges: cloneRelatedEdges(relatedEdges),
+    skillMap: cloneStudySkillMap(skillMap),
+  };
+}
+
+function cloneEditHistorySnapshot(snapshot: EditHistorySnapshot): EditHistorySnapshot {
+  return createEditHistorySnapshot(snapshot.skillMap, snapshot.relatedEdges);
 }
 
 function flattenSkillMapForGraphSave(skillMap: StudySkillMapNode) {
