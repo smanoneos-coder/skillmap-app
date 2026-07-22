@@ -122,6 +122,35 @@ export function SkillMapLearningView({
     setSelectedNode(getSkillMapNodeByPath(visibleSkillMap, selectedNodePath));
   }, [selectedNodePath, visibleSkillMap]);
 
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (isEditableShortcutTarget(event.target)) {
+        return;
+      }
+
+      if (!selectedNodePath) {
+        return;
+      }
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        addDraftNode(createShortcutChildTitle(), selectedNodePath, "right");
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        deleteSelectedNodeWithoutConfirmation("subtree");
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+    };
+  });
+
   async function handleUpdateProgress(nodeId: string, status: ProgressStatus) {
     if (isTemporaryNodeId(nodeId)) {
       setProgressError("新規ノードの学習状態は、変更を保存した後に更新できます。");
@@ -361,6 +390,45 @@ export function SkillMapLearningView({
     }
   }
 
+  function deleteSelectedNodeWithoutConfirmation(mode: DeleteNodeMode) {
+    const editState = ensureEditMode();
+
+    if (!selectedNodePath || !editState) {
+      setNodeEditError("編集するノードを選択してください。");
+      return;
+    }
+
+    const targetNode = getSkillMapNodeByPath(editState.skillMap, selectedNodePath);
+
+    if (!targetNode) {
+      setNodeEditError("選択中のノードが見つかりません。");
+      return;
+    }
+
+    setIsDeletingNode(true);
+    setNodeEditError(null);
+
+    try {
+      const removedNodeIds = new Set(collectRemovedNodeIds(targetNode, mode));
+      const nextSkillMap = deleteStudySkillMapNodeAtPathWithMode(
+        editState.skillMap,
+        selectedNodePath,
+        mode,
+      );
+      const nextRelatedEdges = editState.relatedEdges.filter(
+        (edge) => !removedNodeIds.has(edge.nodeAId) && !removedNodeIds.has(edge.nodeBId),
+      );
+
+      setDraftSkillMap(nextSkillMap);
+      setDraftRelatedEdges(nextRelatedEdges);
+      setSelectedNode(null);
+      setSelectedNodePath(null);
+      setSelectedRelatedEdgeId(null);
+    } finally {
+      setIsDeletingNode(false);
+    }
+  }
+
   function handleAddChildNode(title: string, direction: ChildNodeDirection) {
     addDraftNode(title, selectedNodePath, direction);
   }
@@ -412,13 +480,17 @@ export function SkillMapLearningView({
         parentPath ? getChildNodePosition(editState.skillMap, parentPath, direction) : null,
       );
       const nextRootPath = String(editState.skillMap.children.length + 1);
+      const nextChildPath = parentPath
+        ? `${parentPath}-${(getSkillMapNodeByPath(editState.skillMap, parentPath)?.children.length ?? 0) + 1}`
+        : null;
       const nextSkillMap = parentPath
         ? addStudySkillMapChildNode(editState.skillMap, parentPath, nextNode)
         : addStudySkillMapRootNode(editState.skillMap, nextNode);
+      const nextSelectedPath = nextChildPath ?? nextRootPath;
 
       setDraftSkillMap(nextSkillMap);
-      setSelectedNode(parentPath ? getSkillMapNodeByPath(nextSkillMap, parentPath) : nextNode);
-      setSelectedNodePath(parentPath ?? nextRootPath);
+      setSelectedNode(getSkillMapNodeByPath(nextSkillMap, nextSelectedPath) ?? nextNode);
+      setSelectedNodePath(nextSelectedPath);
     } finally {
       setIsAddingChild(false);
     }
@@ -1020,6 +1092,25 @@ function createTemporaryEdgeId() {
 
 function isTemporaryNodeId(nodeId: string) {
   return nodeId.startsWith("temp-");
+}
+
+function createShortcutChildTitle() {
+  return "新規ノード";
+}
+
+function isEditableShortcutTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    target.isContentEditable
+  );
 }
 
 function cloneStudySkillMap(skillMap: StudySkillMapNode): StudySkillMapNode {
