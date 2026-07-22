@@ -9,11 +9,11 @@ type AutoArrangeBounds = {
   maxY: number;
 };
 
-const AUTO_LAYOUT_PRIMARY_GAP = 320;
-const AUTO_LAYOUT_PERPENDICULAR_GAP = 150;
-const AUTO_LAYOUT_ROOT_GAP = 220;
+const AUTO_LAYOUT_PRIMARY_GAP = 400;
+const AUTO_LAYOUT_PERPENDICULAR_GAP = 190;
+const AUTO_LAYOUT_ROOT_GAP = 280;
 const AUTO_LAYOUT_NODE_WIDTH = 240;
-const AUTO_LAYOUT_NODE_HEIGHT = 96;
+const AUTO_LAYOUT_NODE_HEIGHT = 116;
 const AUTO_LAYOUT_DIRECTIONS: AutoArrangeDirection[] = ["right", "down", "left", "up"];
 
 export function autoArrangeStudySkillMap(skillMap: StudySkillMapNode): StudySkillMapNode {

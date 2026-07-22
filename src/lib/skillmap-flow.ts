@@ -31,8 +31,8 @@ export type SkillMapFlowElements = {
 };
 
 const NODE_WIDTH = 220;
-const HORIZONTAL_GAP = 280;
-const VERTICAL_GAP = 96;
+const HORIZONTAL_GAP = 360;
+const VERTICAL_GAP = 148;
 
 export function createSkillMapFlowElements(
   skillMap: StudySkillMapNode,
@@ -94,6 +94,7 @@ export function createSkillMapFlowElements(
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
+      zIndex: relationshipHighlight || isActiveSearchMatch ? 3 : 2,
       style: {
         width: NODE_WIDTH,
         borderRadius: 8,
@@ -148,13 +149,16 @@ export function createSkillMapFlowElements(
         targetHandle: `target-${edgePositions.targetPosition.toLowerCase()}`,
         type: "smoothstep",
         animated: false,
+        interactionWidth: 18,
         data: {
           kind: "hierarchy",
         },
         style: {
           stroke: "hsl(var(--muted-foreground))",
-          strokeWidth: 1.5,
+          strokeOpacity: 0.75,
+          strokeWidth: 1.4,
         },
+        zIndex: 0,
       });
     }
 
@@ -182,8 +186,9 @@ export function createSkillMapFlowElements(
       target: secondNode.id,
       sourceHandle: `source-${edgePositions.sourcePosition.toLowerCase()}`,
       targetHandle: `target-${edgePositions.targetPosition.toLowerCase()}`,
-      type: "straight",
+      type: "bezier",
       animated: false,
+      interactionWidth: 18,
       data: {
         kind: "related",
         relatedEdgeId: relatedEdge.id,
@@ -191,8 +196,10 @@ export function createSkillMapFlowElements(
       style: {
         stroke: selected ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
         strokeDasharray: "6 4",
+        strokeOpacity: selected ? 0.9 : 0.55,
         strokeWidth: selected ? 2.6 : 1.6,
       },
+      zIndex: selected ? 1 : 0,
     });
   }
 
