@@ -14,6 +14,7 @@ export function createStudySkillMap(skillMap: GeneratedSkillMap): StudySkillMapN
     title: skillMap.title,
     description: skillMap.description,
     tags: skillMap.tags,
+    imageUrl: null,
     progressStatus: "NOT_STARTED",
     positionX: null,
     positionY: null,
@@ -29,6 +30,7 @@ function createStudySkillMapNode(skillMap: GeneratedSkillMap): StudySkillMapNode
     title: skillMap.title,
     description: skillMap.description,
     tags: skillMap.tags,
+    imageUrl: null,
     progressStatus: "NOT_STARTED",
     positionX: null,
     positionY: null,
@@ -82,6 +84,7 @@ export function updateStudySkillMapNodeDetails(
     title: string;
     description: string;
     tags: string[];
+    imageUrl: string | null;
   },
 ): StudySkillMapNode {
   return updateStudySkillMapNodeAtPath(skillMap, path, (node) => ({
@@ -89,6 +92,7 @@ export function updateStudySkillMapNodeDetails(
     title: input.title,
     description: input.description,
     tags: input.tags,
+    imageUrl: input.imageUrl,
   }));
 }
 

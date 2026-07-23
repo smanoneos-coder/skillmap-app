@@ -19,6 +19,14 @@ export async function generateOpenAISkillMap(theme: string) {
     );
   }
 
+  if (looksLikeSecretKey(model)) {
+    throw new SkillMapGenerationError(
+      "OPENAI_NOT_CONFIGURED",
+      "OPENAI_MODEL must be a model name, not an API key.",
+      500,
+    );
+  }
+
   try {
     const openai = createOpenAIClient();
     const completion = await createSkillMapCompletion(openai, model, theme);
@@ -49,6 +57,10 @@ export async function generateOpenAISkillMap(theme: string) {
 
     throw mapOpenAIError(error);
   }
+}
+
+function looksLikeSecretKey(value: string) {
+  return value.trim().startsWith("sk-");
 }
 
 async function createSkillMapCompletion(openai: OpenAI, model: string, theme: string) {

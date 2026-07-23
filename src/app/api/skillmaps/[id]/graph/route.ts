@@ -26,6 +26,7 @@ const graphNodeSchema = z.object({
   title: z.string().trim().min(1).max(50),
   description: z.string().trim().min(1).max(500),
   tags: z.array(z.string().trim().min(1).max(30)).max(5),
+  imageUrl: z.string().trim().url().max(2000).nullable().default(null),
   order: z.number().int().min(0).max(10_000),
   positionX: z.number().finite().min(-MAX_POSITION).max(MAX_POSITION).nullable(),
   positionY: z.number().finite().min(-MAX_POSITION).max(MAX_POSITION).nullable(),

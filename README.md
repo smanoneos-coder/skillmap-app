@@ -159,3 +159,46 @@ http://localhost:3000/auth/callback
 ```
 
 If you test Google login on Vercel Preview deployments, add the corresponding Preview callback URL as well.
+
+## Supabase Storage for node images
+
+Node image upload uses Supabase Storage with the authenticated user's session. The app does not require a Service Role key for this flow.
+
+Environment variable:
+
+```env
+SUPABASE_NODE_IMAGE_BUCKET="node-images"
+```
+
+Create a public bucket in Supabase Storage:
+
+```text
+Storage > Buckets > New bucket
+Name: node-images
+Public bucket: enabled
+```
+
+Recommended Storage policies for `storage.objects`:
+
+```sql
+create policy "Users can upload own node images"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'node-images'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users can read node images"
+on storage.objects
+for select
+to public
+using (bucket_id = 'node-images');
+```
+
+The upload API stores files under:
+
+```text
+<auth-user-id>/<random-id>.<ext>
+```

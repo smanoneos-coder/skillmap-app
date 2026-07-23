@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ type NodeDetailsInput = {
   title: string;
   description: string;
   tags: string[];
+  imageUrl: string | null;
 };
 
 export type ParentNodeOption = {
@@ -61,6 +62,9 @@ export function SkillMapDetailDrawer({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tagsText, setTagsText] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [childTitle, setChildTitle] = useState("");
   const [childDirection, setChildDirection] = useState<ChildNodeDirection>("right");
   const [selectedParentPath, setSelectedParentPath] = useState("");
@@ -71,6 +75,8 @@ export function SkillMapDetailDrawer({
     setTitle(node?.title ?? "");
     setDescription(node?.description ?? "");
     setTagsText(node?.tags.join(", ") ?? "");
+    setImageUrl(node?.imageUrl ?? "");
+    setImageUploadError(null);
     setChildTitle("");
     setSelectedParentPath(currentParentPath ?? "");
     setParentLocked(node?.parentLocked ?? false);
@@ -101,11 +107,12 @@ export function SkillMapDetailDrawer({
 
   const nodeId = node.nodeId;
   const tags = parseTagsText(tagsText);
-  const isBusy = isAddingChild || isDeletingNode || isEditingNode || isUpdatingProgress;
+  const isBusy = isAddingChild || isDeletingNode || isEditingNode || isUpdatingProgress || isUploadingImage;
   const hasNodeChanges =
     title.trim() !== node.title ||
     description.trim() !== node.description ||
-    tags.join("\n") !== node.tags.join("\n");
+    tags.join("\n") !== node.tags.join("\n") ||
+    (imageUrl.trim() || null) !== node.imageUrl;
   const hasParentChanges =
     selectedParentPath !== (currentParentPath ?? "") || parentLocked !== node.parentLocked;
   const hasEdgeSourceChanges =
@@ -117,7 +124,42 @@ export function SkillMapDetailDrawer({
       title,
       description,
       tags,
+      imageUrl: imageUrl.trim() || null,
     });
+  }
+
+  async function handleImageFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setImageUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/node-images", {
+        method: "POST",
+        body: formData,
+      });
+      const payload: unknown = await response.json();
+
+      if (!response.ok || !isImageUploadResponse(payload)) {
+        setImageUploadError(getUploadErrorMessage(payload));
+        return;
+      }
+
+      setImageUrl(payload.data.imageUrl);
+    } catch {
+      setImageUploadError("Image upload failed.");
+    } finally {
+      setIsUploadingImage(false);
+      event.target.value = "";
+    }
   }
 
   function handleChildSubmit(event: FormEvent<HTMLFormElement>) {
@@ -217,6 +259,40 @@ export function SkillMapDetailDrawer({
                 placeholder="Linux, CLI"
                 value={tagsText}
               />
+
+              <label className="block text-xs font-medium text-muted-foreground" htmlFor="node-image-url">
+                Image URL
+              </label>
+              <input
+                accept="image/gif,image/jpeg,image/png,image/webp"
+                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground"
+                disabled={isBusy}
+                onChange={handleImageFileChange}
+                type="file"
+              />
+              {isUploadingImage ? (
+                <p className="text-xs text-muted-foreground">Uploading image...</p>
+              ) : null}
+              {imageUploadError ? (
+                <p aria-live="assertive" className="text-xs text-destructive" role="alert">
+                  {imageUploadError}
+                </p>
+              ) : null}
+              <input
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+                disabled={isBusy}
+                id="node-image-url"
+                onChange={(event) => setImageUrl(event.target.value)}
+                placeholder="https://example.com/image.png"
+                type="url"
+                value={imageUrl}
+              />
+              {imageUrl.trim() ? (
+                <div className="overflow-hidden rounded-md border bg-muted/30">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img alt="" className="max-h-40 w-full object-cover" src={imageUrl.trim()} />
+                </div>
+              ) : null}
 
               <Button disabled={isBusy || !hasNodeChanges} type="submit">
                 {isEditingNode ? "保存中" : "保存"}
@@ -389,6 +465,12 @@ export function SkillMapDetailDrawer({
               学習状態を保存しています。
             </p>
           ) : null}
+          {node.imageUrl ? (
+            <div className="mb-4 overflow-hidden rounded-lg border bg-muted/30">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img alt="" className="max-h-64 w-full object-cover" src={node.imageUrl} />
+            </div>
+          ) : null}
           <div className="break-words text-sm leading-7 text-foreground [&_a]:text-primary [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-3 [&_strong]:font-semibold">
             <ReactMarkdown>{node.description}</ReactMarkdown>
           </div>
@@ -408,6 +490,37 @@ function parseTagsText(value: string) {
         .map((tag) => tag.slice(0, 30)),
     ),
   ).slice(0, 5);
+}
+
+function isImageUploadResponse(payload: unknown): payload is { data: { imageUrl: string } } {
+  if (typeof payload !== "object" || payload === null || !("data" in payload)) {
+    return false;
+  }
+
+  const data = (payload as { data: unknown }).data;
+
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "imageUrl" in data &&
+    typeof (data as { imageUrl: unknown }).imageUrl === "string"
+  );
+}
+
+function getUploadErrorMessage(payload: unknown) {
+  if (typeof payload !== "object" || payload === null || !("error" in payload)) {
+    return "Image upload failed.";
+  }
+
+  const error = (payload as { error: unknown }).error;
+
+  if (typeof error !== "object" || error === null || !("message" in error)) {
+    return "Image upload failed.";
+  }
+
+  const message = (error as { message: unknown }).message;
+
+  return typeof message === "string" ? message : "Image upload failed.";
 }
 
 const CHILD_NODE_DIRECTIONS: { label: string; value: ChildNodeDirection }[] = [

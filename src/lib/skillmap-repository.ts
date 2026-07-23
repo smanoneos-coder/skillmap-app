@@ -19,6 +19,7 @@ export type SkillMapGraphNodeInput = {
   title: string;
   description: string;
   tags: string[];
+  imageUrl: string | null;
   order: number;
   positionX: number | null;
   positionY: number | null;
@@ -414,6 +415,7 @@ export async function saveSkillMapGraph(input: {
             title: node.title,
             description: node.description,
             tags: node.tags,
+            imageUrl: node.imageUrl,
             order: node.order,
             positionX: node.positionX,
             positionY: node.positionY,
@@ -448,6 +450,7 @@ export async function saveSkillMapGraph(input: {
               title: node.title,
               description: node.description,
               tags: node.tags,
+              imageUrl: node.imageUrl,
               order: node.order,
               positionX: node.positionX,
               positionY: node.positionY,
@@ -578,6 +581,7 @@ export async function updateNodeDetails(input: {
   title: string;
   description: string;
   tags: string[];
+  imageUrl: string | null;
 }) {
   return prisma.$transaction(async (tx) => {
     const node = await tx.node.findFirst({
@@ -606,12 +610,14 @@ export async function updateNodeDetails(input: {
         title: input.title,
         description: input.description,
         tags: input.tags,
+        imageUrl: input.imageUrl,
       },
       select: {
         id: true,
         title: true,
         description: true,
         tags: true,
+        imageUrl: true,
       },
     });
 
@@ -642,6 +648,7 @@ export async function updateNodeTitle(input: {
     select: {
       description: true,
       tags: true,
+      imageUrl: true,
     },
   });
 
@@ -655,6 +662,7 @@ export async function updateNodeTitle(input: {
     title: input.title,
     description: node.description,
     tags: parseTags(node.tags),
+    imageUrl: node.imageUrl,
   });
 }
 
@@ -785,6 +793,7 @@ export async function createChildNode(input: {
         title: true,
         description: true,
         tags: true,
+        imageUrl: true,
         positionX: true,
         positionY: true,
         parentLocked: true,
@@ -799,6 +808,7 @@ export async function createChildNode(input: {
         title: node.title,
         description: node.description,
         tags: parseTags(node.tags),
+        imageUrl: node.imageUrl,
         progressStatus: "NOT_STARTED" as const,
         positionX: node.positionX,
         positionY: node.positionY,
@@ -825,11 +835,12 @@ async function createNodeTree(
       parentId: input.parentId,
       title: input.node.title,
       description: input.node.description,
-        order: input.order,
-        tags: input.node.tags,
-        positionX: null,
-        positionY: null,
-      },
+      imageUrl: null,
+      order: input.order,
+      tags: input.node.tags,
+      positionX: null,
+      positionY: null,
+    },
   });
 
   for (const [index, child] of input.node.children.entries()) {
@@ -889,6 +900,7 @@ function buildSkillMapTree(input: {
     title: input.title,
     description: input.description,
     tags: [],
+    imageUrl: null,
     progressStatus: "NOT_STARTED",
     positionX: null,
     positionY: null,
@@ -909,6 +921,7 @@ function buildNode(node: PrismaNodeWithProgress, allNodes: PrismaNodeWithProgres
     title: node.title,
     description: node.description,
     tags: parseTags(node.tags),
+    imageUrl: node.imageUrl,
     progressStatus: node.progresses[0]?.status ?? "NOT_STARTED",
     positionX: node.positionX,
     positionY: node.positionY,

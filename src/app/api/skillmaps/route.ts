@@ -27,7 +27,17 @@ export async function GET() {
     return authResult.response;
   }
 
-  const skillMaps = await listSavedSkillMaps(authResult.user.id);
+  let skillMaps;
+
+  try {
+    skillMaps = await listSavedSkillMaps(authResult.user.id);
+  } catch {
+    return apiError(
+      "DATABASE_ERROR",
+      "Saved skill maps could not be loaded. Check DATABASE_URL.",
+      503,
+    );
+  }
 
   return Response.json({
     data: skillMaps,

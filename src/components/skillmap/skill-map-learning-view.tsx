@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import type { NodeChange } from "@xyflow/react";
 import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
   SkillMapDetailDrawer,
@@ -36,6 +36,7 @@ type SkillMapLearningViewProps = {
   relatedEdges: StudySkillMapEdge[];
   savedSkillMapId: string | null;
   skillMap: StudySkillMapNode;
+  toolbarActions?: ReactNode;
 };
 
 type SkillMapViewMode = "map" | "list";
@@ -60,6 +61,7 @@ export function SkillMapLearningView({
   relatedEdges,
   savedSkillMapId,
   skillMap,
+  toolbarActions,
 }: SkillMapLearningViewProps) {
   const [viewMode, setViewMode] = useState<SkillMapViewMode>("map");
   const [selectedNode, setSelectedNode] = useState<StudySkillMapNode | null>(null);
@@ -159,7 +161,13 @@ export function SkillMapLearningView({
         return;
       }
 
-      if (event.key === "Delete" || event.key === "Backspace") {
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        deleteSelectedNodeWithoutConfirmation("single");
+        return;
+      }
+
+      if (event.key === "Delete") {
         event.preventDefault();
         deleteSelectedNodeWithoutConfirmation("subtree");
       }
@@ -322,6 +330,7 @@ export function SkillMapLearningView({
     title: string;
     description: string;
     tags: string[];
+    imageUrl: string | null;
   }) {
     const editState = ensureEditMode();
 
@@ -333,6 +342,7 @@ export function SkillMapLearningView({
     const title = input.title.trim();
     const description = input.description.trim();
     const tags = normalizeTags(input.tags);
+    const imageUrl = input.imageUrl?.trim() || null;
 
     if (!title || title.length > 50) {
       setNodeEditError("ノード名は1〜50文字で入力してください。");
@@ -344,6 +354,11 @@ export function SkillMapLearningView({
       return;
     }
 
+    if (imageUrl && !isValidImageUrl(imageUrl)) {
+      setNodeEditError("画像URLは http または https のURLを入力してください。");
+      return;
+    }
+
     setIsEditingNode(true);
     setNodeEditError(null);
 
@@ -352,6 +367,7 @@ export function SkillMapLearningView({
         title,
         description,
         tags,
+        imageUrl,
       });
       commitDraftChange(editState, {
         relatedEdges: editState.relatedEdges,
@@ -800,9 +816,13 @@ export function SkillMapLearningView({
   return (
     <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-2">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-2 rounded-lg border bg-background p-2 xl:flex-row xl:items-center xl:justify-between">
+        {toolbarActions ? (
+          <div className="flex min-w-fit flex-wrap items-center gap-2">
+            {toolbarActions}
+          </div>
+        ) : null}
         <div className="min-w-0 space-y-2">
-          <p className="text-sm text-muted-foreground">ノードをクリックすると詳細を表示します。</p>
           <div className="flex flex-wrap items-center gap-3">
             <div
               aria-label={`進捗 ${progressStats.percent}%`}
@@ -911,9 +931,8 @@ export function SkillMapLearningView({
             リスト
           </button>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2">
         {editMode ? (
           <>
             <span className="text-sm font-medium">編集モード</span>
@@ -976,6 +995,7 @@ export function SkillMapLearningView({
             ) : null}
           </>
         )}
+        </div>
       </div>
 
       {viewMode === "map" ? (
@@ -1079,6 +1099,16 @@ function normalizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).slice(0, 5);
 }
 
+function isValidImageUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function getPathFromFlowNodeId(nodeId: string) {
   return nodeId.startsWith("node-") ? nodeId.slice("node-".length) : nodeId;
 }
@@ -1170,6 +1200,7 @@ function createDraftNode(
     title,
     description: `${title}について学習します。`,
     tags: [],
+    imageUrl: null,
     progressStatus: "NOT_STARTED",
     positionX: position?.x ?? null,
     positionY: position?.y ?? null,
@@ -1280,6 +1311,7 @@ function flattenSkillMapForGraphSave(skillMap: StudySkillMapNode) {
     title: string;
     description: string;
     tags: string[];
+    imageUrl: string | null;
     order: number;
     positionX: number | null;
     positionY: number | null;
@@ -1299,6 +1331,7 @@ function flattenSkillMapForGraphSave(skillMap: StudySkillMapNode) {
       title: node.title,
       description: node.description,
       tags: node.tags,
+      imageUrl: node.imageUrl,
       order,
       positionX: node.positionX,
       positionY: node.positionY,

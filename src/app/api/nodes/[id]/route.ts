@@ -18,6 +18,7 @@ const updateNodeRequestSchema = z.object({
   title: z.string().trim().min(1).max(50),
   description: z.string().trim().min(1).max(500),
   tags: z.array(z.string().trim().min(1).max(30)).max(5),
+  imageUrl: z.string().trim().url().max(2000).nullable().default(null),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -51,6 +52,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     title: parsedRequest.data.title,
     description: parsedRequest.data.description,
     tags: parsedRequest.data.tags,
+    imageUrl: parsedRequest.data.imageUrl,
   });
 
   if (!node) {

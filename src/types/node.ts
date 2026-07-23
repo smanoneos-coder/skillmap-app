@@ -10,6 +10,7 @@ export type SkillMapNode = {
   description: string;
   order: number;
   tags: string[];
+  imageUrl: string | null;
   positionX: number | null;
   positionY: number | null;
   parentLocked: boolean;
@@ -30,6 +31,7 @@ export type StudySkillMapNode = {
   title: string;
   description: string;
   tags: string[];
+  imageUrl: string | null;
   progressStatus: ProgressStatus;
   positionX: number | null;
   positionY: number | null;

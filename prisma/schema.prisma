@@ -46,6 +46,7 @@ model Node {
   description String  @db.Text
   order       Int     @map("sort_order")
   tags        Json    @default("[]")
+  imageUrl    String? @map("image_url") @db.Text
   positionX   Float?  @map("position_x")
   positionY   Float?  @map("position_y")
   parentLocked Boolean @default(false) @map("parent_locked")

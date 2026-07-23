@@ -41,6 +41,12 @@ function getCallbackUrl(requestOrigin: string, nextPath: string) {
 }
 
 function getSiteUrl(requestOrigin: string) {
+  const localSiteUrl = getLocalSiteUrl(requestOrigin);
+
+  if (localSiteUrl) {
+    return localSiteUrl;
+  }
+
   const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
   if (!configuredSiteUrl) {
@@ -64,6 +70,16 @@ function normalizeSiteUrl(value: string) {
   const pathname = url.pathname.replace(/\/+$/, "");
 
   return `${url.origin}${pathname}`;
+}
+
+function getLocalSiteUrl(requestOrigin: string) {
+  const url = new URL(requestOrigin);
+
+  if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+    return null;
+  }
+
+  return normalizeSiteUrl(`http://localhost${url.port ? `:${url.port}` : ""}`);
 }
 
 function logSafeAuthError(message: string, error: unknown) {

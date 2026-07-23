@@ -8,6 +8,7 @@ export type SkillMapFlowNodeData = {
   label: string;
   description: string;
   tags: string[];
+  imageUrl: string | null;
   depth: number;
   editMode: boolean;
   path: string;
@@ -62,6 +63,7 @@ export function createSkillMapFlowElements(
     );
     const isSearchMatch = options.searchMatchPaths?.has(indexPath) ?? false;
     const isActiveSearchMatch = options.activeSearchPath === indexPath;
+    const isSelected = options.selectedNodePath === indexPath;
     const relationshipHighlight = getRelationshipHighlight(
       indexPath,
       options.selectedNodePath ?? null,
@@ -76,6 +78,7 @@ export function createSkillMapFlowElements(
     const flowNode: SkillMapFlowNode = {
       id: currentId,
       type: "skillMap",
+      selected: isSelected,
       position: {
         x,
         y,
@@ -84,6 +87,7 @@ export function createSkillMapFlowElements(
         label: node.title,
         description: node.description,
         tags: node.tags,
+        imageUrl: node.imageUrl,
         depth,
         editMode: options.editMode ?? false,
         path: indexPath,
@@ -94,7 +98,7 @@ export function createSkillMapFlowElements(
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
-      zIndex: relationshipHighlight || isActiveSearchMatch ? 3 : 2,
+      zIndex: isSelected || relationshipHighlight || isActiveSearchMatch ? 3 : 2,
       style: {
         width: NODE_WIDTH,
         borderRadius: 8,
