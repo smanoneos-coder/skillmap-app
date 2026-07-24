@@ -9,9 +9,9 @@ type AutoArrangeBounds = {
   maxY: number;
 };
 
-const AUTO_LAYOUT_PRIMARY_GAP = 400;
-const AUTO_LAYOUT_PERPENDICULAR_GAP = 190;
-const AUTO_LAYOUT_ROOT_GAP = 280;
+const AUTO_LAYOUT_PRIMARY_GAP = 460;
+const AUTO_LAYOUT_PERPENDICULAR_GAP = 230;
+const AUTO_LAYOUT_ROOT_GAP = 340;
 const AUTO_LAYOUT_NODE_WIDTH = 240;
 const AUTO_LAYOUT_NODE_HEIGHT = 116;
 const AUTO_LAYOUT_DIRECTIONS: AutoArrangeDirection[] = ["right", "down", "left", "up"];
@@ -73,6 +73,7 @@ function arrangeRootNode(node: StudySkillMapNode): {
       ...node,
       positionX: 0,
       positionY: 0,
+      parentEdgeSourcePosition: null,
       children: node.children.map((_, index) => arrangedChildrenByIndex.get(index)).filter(isStudySkillMapNode),
     },
     bounds,
@@ -132,6 +133,7 @@ function arrangeDirectionalNode(
       ...node,
       positionX: position.x,
       positionY: position.y,
+      parentEdgeSourcePosition: direction,
       children: node.children.map((_, index) => arrangedChildrenByIndex.get(index)).filter(isStudySkillMapNode),
     },
     bounds,

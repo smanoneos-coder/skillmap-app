@@ -30,6 +30,7 @@ type SkillMapDetailDrawerProps = {
   isUpdatingProgress: boolean;
   nodeEditError: string | null;
   node: StudySkillMapNode | null;
+  nodeNumber: string;
   onAddChildNode: (title: string, direction: ChildNodeDirection) => void;
   onClose: () => void;
   onDeleteNode: () => void;
@@ -49,6 +50,7 @@ export function SkillMapDetailDrawer({
   isUpdatingProgress,
   nodeEditError,
   node,
+  nodeNumber,
   onAddChildNode,
   onClose,
   onDeleteNode,
@@ -199,7 +201,14 @@ export function SkillMapDetailDrawer({
       >
         <header className="flex items-start justify-between gap-3 border-b p-4">
           <div className="min-w-0 space-y-2">
-            <h2 className="break-words text-lg font-semibold leading-7">{node.title}</h2>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {nodeNumber ? (
+                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                  {nodeNumber}
+                </span>
+              ) : null}
+              <h2 className="min-w-0 break-words text-lg font-semibold leading-7">{node.title}</h2>
+            </div>
             {node.tags.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {node.tags.map((tag) => (

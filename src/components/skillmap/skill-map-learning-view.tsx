@@ -24,6 +24,7 @@ import {
 } from "@/lib/skillmap-progress";
 import { createSkillMapFlowElements, type SkillMapFlowNode } from "@/lib/skillmap-flow";
 import { autoArrangeStudySkillMap } from "@/lib/skillmap-layout";
+import { getSkillMapNodeNumber } from "@/lib/skillmap-numbering";
 import { getSkillMapNodeByPath, searchSkillMap } from "@/lib/skillmap-search";
 import type { ChildNodeDirection, NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { ProgressStatus } from "@/types/progress";
@@ -97,6 +98,7 @@ export function SkillMapLearningView({
     ? visibleRelatedEdges.find((edge) => edge.id === selectedRelatedEdgeId) ?? null
     : null;
   const currentParentPath = selectedNodePath ? getParentPath(selectedNodePath) : null;
+  const selectedNodeNumber = selectedNodePath ? getSkillMapNodeNumber(selectedNodePath) : "";
   const parentOptions = useMemo(
     () =>
       selectedNodePath
@@ -213,18 +215,6 @@ export function SkillMapLearningView({
     } finally {
       setUpdatingNodeId(null);
     }
-  }
-
-  function moveSearchResult(direction: "next" | "previous") {
-    if (searchResults.length === 0) {
-      return;
-    }
-
-    setActiveSearchIndex((currentIndex) =>
-      direction === "next"
-        ? (currentIndex + 1) % searchResults.length
-        : (currentIndex - 1 + searchResults.length) % searchResults.length,
-    );
   }
 
   function handleSelectNode(node: StudySkillMapNode, path: string) {
@@ -815,7 +805,7 @@ export function SkillMapLearningView({
 
   return (
     <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="min-w-0 space-y-2">
+      <div className="flex min-h-0 min-w-0 flex-col gap-2">
       <div className="flex flex-col gap-2 rounded-lg border bg-background p-2 xl:flex-row xl:items-center xl:justify-between">
         {toolbarActions ? (
           <div className="flex min-w-fit flex-wrap items-center gap-2">
@@ -878,26 +868,6 @@ export function SkillMapLearningView({
                   <X aria-hidden="true" className="h-4 w-4" />
                 </button>
               ) : null}
-            </div>
-            <div className="flex gap-2">
-              <button
-                aria-label="前の検索結果へ移動"
-                className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
-                disabled={searchResults.length === 0}
-                onClick={() => moveSearchResult("previous")}
-                type="button"
-              >
-                前へ
-              </button>
-              <button
-                aria-label="次の検索結果へ移動"
-                className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
-                disabled={searchResults.length === 0}
-                onClick={() => moveSearchResult("next")}
-                type="button"
-              >
-                次へ
-              </button>
             </div>
           </div>
           <p aria-live="polite" className="text-xs text-muted-foreground" role="status">
@@ -998,32 +968,36 @@ export function SkillMapLearningView({
         </div>
       </div>
 
-      {viewMode === "map" ? (
-        <SkillMapFlowViewer
-          activeSearchPath={activeSearchPath}
-          editMode={editMode}
-          onConnectRelatedEdge={handleConnectRelatedEdge}
-          onNodePositionsChange={handleNodePositionsChange}
-          onSelectNode={handleSelectNode}
-          onSelectRelatedEdge={setSelectedRelatedEdgeId}
-          relatedEdges={visibleRelatedEdges}
-          searchMatchPaths={searchMatchPaths}
-          selectedRelatedEdgeId={selectedRelatedEdgeId}
-          selectedNodePath={selectedNodePath}
-          skillMap={visibleSkillMap}
-        />
-      ) : (
-        <SkillMapListViewer
-          activeSearchPath={activeSearchPath}
-          onSelectNode={handleSelectNode}
-          searchMatchPaths={searchMatchPaths}
-          skillMap={visibleSkillMap}
-        />
-      )}
+      <div className="min-h-0 flex-1">
+        {viewMode === "map" ? (
+          <SkillMapFlowViewer
+            activeSearchPath={activeSearchPath}
+            editMode={editMode}
+            onConnectRelatedEdge={handleConnectRelatedEdge}
+            onNodePositionsChange={handleNodePositionsChange}
+            onSelectNode={handleSelectNode}
+            onSelectRelatedEdge={setSelectedRelatedEdgeId}
+            relatedEdges={visibleRelatedEdges}
+            searchMatchPaths={searchMatchPaths}
+            selectedRelatedEdgeId={selectedRelatedEdgeId}
+            selectedNodePath={selectedNodePath}
+            skillMap={visibleSkillMap}
+          />
+        ) : (
+          <div className="h-full overflow-auto">
+            <SkillMapListViewer
+              activeSearchPath={activeSearchPath}
+              onSelectNode={handleSelectNode}
+              searchMatchPaths={searchMatchPaths}
+              skillMap={visibleSkillMap}
+            />
+          </div>
+        )}
+      </div>
 
       </div>
 
-      <div className="min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:min-h-0">
+      <div className="min-h-0 min-w-0">
       <SkillMapDetailDrawer
         currentParentPath={currentParentPath}
         editMode={editMode}
@@ -1032,6 +1006,7 @@ export function SkillMapLearningView({
         isEditingNode={isEditingNode}
         isUpdatingProgress={updatingNodeId === selectedNode?.nodeId}
         node={selectedNode}
+        nodeNumber={selectedNodeNumber}
         nodeEditError={nodeEditError}
         onAddChildNode={handleAddChildNode}
         onClose={() => {

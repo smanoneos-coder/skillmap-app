@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { PROGRESS_STATUS_LABELS, PROGRESS_STATUS_STYLES } from "@/constants/status";
+import { getSkillMapNodeNumber } from "@/lib/skillmap-numbering";
 import { getSkillMapNodePath } from "@/lib/skillmap-search";
 import type { StudySkillMapNode } from "@/types/node";
 
@@ -59,6 +60,7 @@ function SkillMapListNode({
   const isSearchMatch = searchMatchPaths.has(nodePath);
   const isActiveSearchMatch = activeSearchPath === nodePath;
   const isForcedOpen = Boolean(activeSearchPath?.startsWith(`${nodePath}-`));
+  const nodeNumber = getSkillMapNodeNumber(nodePath);
   const [isManuallyOpen, setIsManuallyOpen] = useState(isForcedOpen);
   const isOpen = isForcedOpen || isManuallyOpen;
   const itemClassName = `rounded-md px-2 py-2 ${
@@ -73,12 +75,7 @@ function SkillMapListNode({
     return (
       <div className={itemClassName}>
         <button className="w-full text-left" onClick={() => onSelectNode(node, nodePath)} type="button">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="block min-w-0 break-words text-sm font-medium">{node.title}</span>
-            <span className={`rounded-md border px-2 py-0.5 text-xs ${PROGRESS_STATUS_STYLES[node.progressStatus]}`}>
-              {PROGRESS_STATUS_LABELS[node.progressStatus]}
-            </span>
-          </span>
+          <NodeListHeading node={node} nodeNumber={nodeNumber} />
           <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
             {node.description}
           </span>
@@ -102,12 +99,7 @@ function SkillMapListNode({
           className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
         />
         <span className="min-w-0 flex-1 text-left">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="block min-w-0 break-words text-sm font-medium">{node.title}</span>
-            <span className={`rounded-md border px-2 py-0.5 text-xs ${PROGRESS_STATUS_STYLES[node.progressStatus]}`}>
-              {PROGRESS_STATUS_LABELS[node.progressStatus]}
-            </span>
-          </span>
+          <NodeListHeading node={node} nodeNumber={nodeNumber} />
           <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
             {node.description}
           </span>
@@ -126,5 +118,25 @@ function SkillMapListNode({
         ))}
       </div>
     </details>
+  );
+}
+
+function NodeListHeading({
+  node,
+  nodeNumber,
+}: {
+  node: StudySkillMapNode;
+  nodeNumber: string;
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+        {nodeNumber}
+      </span>
+      <span className="block min-w-0 break-words text-sm font-medium">{node.title}</span>
+      <span className={`rounded-md border px-2 py-0.5 text-xs ${PROGRESS_STATUS_STYLES[node.progressStatus]}`}>
+        {PROGRESS_STATUS_LABELS[node.progressStatus]}
+      </span>
+    </span>
   );
 }

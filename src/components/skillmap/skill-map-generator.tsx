@@ -3,7 +3,6 @@
 import {
   ArrowRight,
   CheckCircle2,
-  ChevronDown,
   Loader2,
   Pencil,
   RotateCcw,
@@ -44,14 +43,15 @@ type ListSkillMapsResponse = {
 type SkillMapGeneratorProps = {
   initialSavedSkillMaps: SavedSkillMapSummary[];
   initialSavedSkillMapsError?: string | null;
+  userEmail: string | null;
 };
 
-const EXAMPLES = ["Linux Skillmap", "AWS SAA", "World History", "Math I", "Python Beginner"];
 const LAST_OPENED_SKILL_MAP_ID_KEY = "skillmap:last-opened-id";
 
 export function SkillMapGenerator({
   initialSavedSkillMaps,
   initialSavedSkillMapsError = null,
+  userEmail,
 }: SkillMapGeneratorProps) {
   const [theme, setTheme] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -71,7 +71,6 @@ export function SkillMapGenerator({
   const [isResettingProgress, setIsResettingProgress] = useState(false);
   const [savedSkillMaps, setSavedSkillMaps] =
     useState<SavedSkillMapSummary[]>(initialSavedSkillMaps);
-  const [isSavedMapsOpen, setIsSavedMapsOpen] = useState(false);
   const [hasRestoredInitialMap, setHasRestoredInitialMap] = useState(false);
 
   const isBusy =
@@ -82,6 +81,10 @@ export function SkillMapGenerator({
     renamingSkillMapId !== null ||
     deletingSkillMapId !== null;
   const hasSavedCurrentMap = savedSkillMapId !== null;
+  const currentSavedSkillMap =
+    savedSkillMapId === null
+      ? null
+      : savedSkillMaps.find((savedSkillMap) => savedSkillMap.id === savedSkillMapId) ?? null;
 
   useEffect(() => {
     let isMounted = true;
@@ -414,19 +417,34 @@ export function SkillMapGenerator({
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-4rem)] gap-2 lg:grid-cols-[300px_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-3 lg:sticky lg:top-2 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1">
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <header className="shrink-0 rounded-lg border bg-card px-3 py-2 shadow-sm">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold leading-6">SkillMap AI</h1>
+              {userEmail ? (
+                <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+              ) : null}
+            </div>
+            <form action="/auth/logout" method="post">
+              <Button className="h-9" type="submit" variant="outline">
+                Log out
+              </Button>
+            </form>
+          </div>
+
         <form
           aria-busy={isGenerating}
-          className="order-1 rounded-lg border bg-card p-4 shadow-sm sm:p-5"
+            className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-xl"
           onSubmit={handleSubmit}
         >
-          <label className="mb-2 block text-sm font-medium" htmlFor="topic">
-            Theme
-          </label>
-          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="shrink-0 text-sm font-medium" htmlFor="topic">
+                Theme
+              </label>
             <input
-              className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
               disabled={isBusy}
               id="topic"
               name="topic"
@@ -435,7 +453,7 @@ export function SkillMapGenerator({
               type="text"
               value={theme}
             />
-            <Button className="h-11 gap-2" disabled={isBusy} type="submit">
+              <Button className="h-9 shrink-0 gap-2" disabled={isBusy} type="submit">
               {isGenerating ? (
                 <>
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -450,118 +468,18 @@ export function SkillMapGenerator({
             </Button>
           </div>
           {errorMessage ? (
-            <p aria-live="assertive" className="mt-3 text-sm text-destructive" role="alert">
+              <p aria-live="assertive" className="text-sm text-destructive" role="alert">
               {errorMessage}
             </p>
           ) : null}
         </form>
+        </div>
+      </header>
 
-        <aside className="order-3 rounded-lg border bg-card p-5">
-          <h2 className="mb-4 text-sm font-semibold">Examples</h2>
-          <ExampleList onSelect={setTheme} />
-        </aside>
-
-        <section
-          className={`order-2 rounded-lg border bg-card p-4 transition-[max-height] sm:p-5 ${
-            isSavedMapsOpen ? "" : "max-h-20 overflow-hidden"
-          }`}
-        >
-          <button
-            aria-expanded={isSavedMapsOpen}
-            className="mb-4 flex w-full items-center justify-between gap-3 text-left"
-            onClick={() => setIsSavedMapsOpen((current) => !current)}
-            type="button"
-          >
-            <h2 className="text-sm font-semibold">Saved maps</h2>
-            <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-              {savedSkillMaps.length}
-              <ChevronDown
-                aria-hidden="true"
-                className={`h-4 w-4 transition-transform ${isSavedMapsOpen ? "rotate-180" : ""}`}
-              />
-            </span>
-          </button>
-          {savedSkillMapsError ? (
-            <p aria-live="assertive" className="mb-3 text-sm text-destructive" role="alert">
-              {savedSkillMapsError}
-            </p>
-          ) : null}
-          {savedSkillMaps.length > 0 ? (
-            <div className="grid gap-2">
-              {savedSkillMaps.map((savedSkillMap) => (
-                <div
-                  className={`rounded-md border p-2 transition-colors ${
-                    savedSkillMap.id === savedSkillMapId ? "border-primary bg-muted" : ""
-                  }`}
-                  key={savedSkillMap.id}
-                >
-                  <button
-                    aria-current={savedSkillMap.id === savedSkillMapId ? "true" : undefined}
-                    className="block w-full rounded px-1 py-1 text-left transition-colors hover:bg-background/80 disabled:cursor-wait disabled:opacity-70"
-                    disabled={isBusy}
-                    onClick={() => handleLoad(savedSkillMap.id)}
-                    type="button"
-                  >
-                    <span className="flex min-w-0 items-center justify-between gap-3">
-                      <span className="block min-w-0 break-words text-sm font-medium">
-                        {savedSkillMap.title}
-                      </span>
-                      {loadingSkillMapId === savedSkillMap.id ? (
-                        <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />
-                      ) : null}
-                    </span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {savedSkillMap.nodeCount} nodes / {formatDate(savedSkillMap.createdAt)}
-                    </span>
-                  </button>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button
-                      className="h-8 gap-1 px-2 text-xs"
-                      disabled={isBusy}
-                      onClick={() => handleRename(savedSkillMap)}
-                      type="button"
-                      variant="outline"
-                    >
-                      {renamingSkillMapId === savedSkillMap.id ? (
-                        <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-                      )}
-                      Rename
-                    </Button>
-                    <Button
-                      className="h-8 gap-1 px-2 text-xs"
-                      disabled={isBusy}
-                      onClick={() => handleDelete(savedSkillMap)}
-                      type="button"
-                      variant="outline"
-                    >
-                      {deletingSkillMapId === savedSkillMap.id ? (
-                        <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                      )}
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed bg-muted/30 p-4">
-              <p className="text-sm font-medium">No saved maps yet.</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Save a generated map to reopen it here.
-              </p>
-            </div>
-          )}
-        </section>
-      </aside>
-
-      <main className="min-w-0">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {skillMap ? (
-          <section className="space-y-3">
-            <div className="rounded-lg border bg-card p-2 sm:p-3">
+          <section className="h-full min-h-0">
+            <div className="h-full min-h-0 rounded-lg border bg-card p-2">
               <SkillMapLearningView
                 mapKey={savedSkillMapId ?? generatedPrompt}
                 onChangeRelatedEdges={setRelatedEdges}
@@ -571,21 +489,18 @@ export function SkillMapGenerator({
                 skillMap={skillMap}
                 toolbarActions={
                   <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold">Skillmap</span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
-                          hasSavedCurrentMap
-                            ? "border-accent/40 bg-accent/10 text-foreground"
-                            : "border-border bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {hasSavedCurrentMap ? (
-                          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 text-accent" />
-                        ) : null}
-                        {hasSavedCurrentMap ? "Saved" : "Unsaved"}
-                      </span>
-                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                        hasSavedCurrentMap
+                          ? "border-accent/40 bg-accent/10 text-foreground"
+                          : "border-border bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {hasSavedCurrentMap ? (
+                        <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 text-accent" />
+                      ) : null}
+                      {hasSavedCurrentMap ? "Saved" : "Unsaved"}
+                    </span>
                     <Button
                       className="h-9 gap-2"
                       disabled={isBusy || savedSkillMapId !== null}
@@ -611,6 +526,42 @@ export function SkillMapGenerator({
                       )}
                       Reset progress
                     </Button>
+                    <Button
+                      className="h-9 gap-2"
+                      disabled={isBusy || !currentSavedSkillMap}
+                      onClick={() => {
+                        if (currentSavedSkillMap) {
+                          void handleRename(currentSavedSkillMap);
+                        }
+                      }}
+                      type="button"
+                      variant="outline"
+                    >
+                      {currentSavedSkillMap && renamingSkillMapId === currentSavedSkillMap.id ? (
+                        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Pencil aria-hidden="true" className="h-4 w-4" />
+                      )}
+                      Rename
+                    </Button>
+                    <Button
+                      className="h-9 gap-2"
+                      disabled={isBusy || !currentSavedSkillMap}
+                      onClick={() => {
+                        if (currentSavedSkillMap) {
+                          void handleDelete(currentSavedSkillMap);
+                        }
+                      }}
+                      type="button"
+                      variant="outline"
+                    >
+                      {currentSavedSkillMap && deletingSkillMapId === currentSavedSkillMap.id ? (
+                        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      )}
+                      Delete
+                    </Button>
                     {saveMessage ? (
                       <p aria-live="polite" className="text-sm text-muted-foreground" role="status">
                         {saveMessage}
@@ -622,11 +573,58 @@ export function SkillMapGenerator({
             </div>
           </section>
         ) : (
-          <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
-            Generated result will appear here.
+          <div className="flex h-full min-h-[420px] items-center justify-center rounded-lg border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
+            Generate or select a saved map to start.
           </div>
         )}
       </main>
+
+      <section className="max-h-24 shrink-0 overflow-hidden rounded-lg border bg-card px-3 py-2">
+        {savedSkillMapsError ? (
+          <p aria-live="assertive" className="mb-2 text-sm text-destructive" role="alert">
+            {savedSkillMapsError}
+          </p>
+        ) : null}
+        {savedSkillMaps.length > 0 ? (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {savedSkillMaps.map((savedSkillMap) => (
+              <div
+                className={`w-56 shrink-0 rounded-md border px-3 py-2 transition-colors ${
+                  savedSkillMap.id === savedSkillMapId ? "border-primary bg-muted" : ""
+                }`}
+                key={savedSkillMap.id}
+              >
+                <button
+                  aria-current={savedSkillMap.id === savedSkillMapId ? "true" : undefined}
+                  className="block w-full rounded px-1 py-1 text-left transition-colors hover:bg-background/80 disabled:cursor-wait disabled:opacity-70"
+                  disabled={isBusy}
+                  onClick={() => handleLoad(savedSkillMap.id)}
+                  type="button"
+                >
+                  <span className="flex min-w-0 items-center justify-between gap-3">
+                    <span className="block min-w-0 truncate text-sm font-medium">
+                      {savedSkillMap.title}
+                    </span>
+                    {loadingSkillMapId === savedSkillMap.id ? (
+                      <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />
+                    ) : null}
+                  </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {savedSkillMap.nodeCount} nodes / {formatDate(savedSkillMap.createdAt)}
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed bg-muted/30 p-3">
+            <p className="text-sm font-medium">No saved maps yet.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Save a generated map to reopen it here.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -654,10 +652,6 @@ function toGeneratedSkillMapNode(node: StudySkillMapNode): GeneratedSkillMap {
   };
 }
 
-export function SkillMapExampleList() {
-  return <ExampleList />;
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ja-JP", {
     month: "2-digit",
@@ -665,23 +659,6 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function ExampleList({ onSelect }: { onSelect?: (example: string) => void }) {
-  return (
-    <div className="grid gap-2">
-      {EXAMPLES.map((example) => (
-        <button
-          className="rounded-md border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
-          key={example}
-          onClick={() => onSelect?.(example)}
-          type="button"
-        >
-          {example}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function getApiErrorMessage(payload: unknown) {

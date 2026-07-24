@@ -2,10 +2,12 @@
 
 import {
   Background,
+  BaseEdge,
   Controls,
   ReactFlow,
   ReactFlowProvider,
   type Connection,
+  type EdgeProps,
   type NodeChange,
   type OnNodeDrag,
   type Viewport,
@@ -50,8 +52,14 @@ const nodeTypes = {
   skillMap: EditableSkillMapNode,
 };
 
+const edgeTypes = {
+  hierarchyAvoiding: RelatedAvoidingEdge,
+  relatedAvoiding: RelatedAvoidingEdge,
+};
+
 const FLOW_NODE_WIDTH = 220;
 const FLOW_NODE_HEIGHT = 92;
+const EDGE_NODE_PADDING = 34;
 const MINI_MAP_WIDTH = 200;
 const MINI_MAP_HEIGHT = 150;
 const MINI_MAP_PADDING = 12;
@@ -237,7 +245,7 @@ function SkillMapFlowCanvas({
 
   return (
     <div
-      className="relative h-[560px] min-h-[460px] overflow-hidden rounded-lg border bg-background lg:h-[calc(100vh-250px)] xl:h-[calc(100vh-230px)]"
+      className="relative h-full min-h-[360px] overflow-hidden rounded-lg border bg-background"
       ref={containerRef}
     >
       <button
@@ -262,6 +270,7 @@ function SkillMapFlowCanvas({
         minZoom={0.25}
         nodesConnectable={editMode}
         nodesDraggable={editMode}
+        edgeTypes={edgeTypes}
         nodeTypes={nodeTypes}
         onConnect={editMode ? handleConnect : undefined}
         onEdgeClick={editMode ? handleEdgeClick : undefined}
@@ -357,7 +366,10 @@ function SkillMapMiniMap({
                 x={node.x + padding}
                 y={node.y + padding + titleSize}
               >
-                {truncateMiniMapText(node.label, Math.max(4, Math.floor(node.width / titleSize)))}
+                {truncateMiniMapText(
+                  `${node.nodeNumber} ${node.label}`,
+                  Math.max(4, Math.floor(node.width / titleSize)),
+                )}
               </text>
               <text
                 fill="hsl(var(--muted-foreground))"
@@ -421,6 +433,247 @@ function SkillMapMiniMap({
   );
 }
 
+function RelatedAvoidingEdge({
+  id,
+  interactionWidth,
+  markerEnd,
+  source,
+  sourceX,
+  sourceY,
+  style,
+  target,
+  targetX,
+  targetY,
+}: EdgeProps<SkillMapFlowEdge>) {
+  const nodes = useNodes<SkillMapFlowNode>();
+  const obstacleRects = useMemo(
+    () =>
+      nodes
+        .filter((node) => node.id !== source && node.id !== target)
+        .map(getObstacleRect),
+    [nodes, source, target],
+  );
+  const path = useMemo(
+    () => createAvoidingPath({ sourceX, sourceY, targetX, targetY }, obstacleRects),
+    [obstacleRects, sourceX, sourceY, targetX, targetY],
+  );
+
+  return (
+    <BaseEdge
+      id={id}
+      interactionWidth={interactionWidth}
+      markerEnd={markerEnd}
+      path={path}
+      style={style}
+    />
+  );
+}
+
+function createAvoidingPath(
+  segment: { sourceX: number; sourceY: number; targetX: number; targetY: number },
+  obstacles: ObstacleRect[],
+) {
+  if (!intersectsPath([toSourcePoint(segment), toTargetPoint(segment)], obstacles)) {
+    return createCurvePath([toSourcePoint(segment), toTargetPoint(segment)]);
+  }
+
+  const candidates = createAvoidingCandidates(segment, obstacles);
+  const bestCandidate = candidates
+    .map((points) => ({
+      points,
+      score: scorePath(points, obstacles),
+    }))
+    .sort((left, right) => left.score - right.score)[0]?.points;
+
+  return createCurvePath(bestCandidate ?? [toSourcePoint(segment), toTargetPoint(segment)]);
+}
+
+function createAvoidingCandidates(
+  segment: { sourceX: number; sourceY: number; targetX: number; targetY: number },
+  obstacles: ObstacleRect[],
+) {
+  const source = toSourcePoint(segment);
+  const target = toTargetPoint(segment);
+  const candidates: Point[][] = [];
+  const relevantObstacles = obstacles.filter((rect) => intersectsSegmentRect(segment, rect));
+  const laneObstacles = relevantObstacles.length > 0 ? relevantObstacles : obstacles;
+  const horizontalLanes = getLaneValues(laneObstacles, "horizontal", segment.sourceY, segment.targetY);
+  const verticalLanes = getLaneValues(laneObstacles, "vertical", segment.sourceX, segment.targetX);
+
+  for (const y of horizontalLanes.slice(0, 1)) {
+    candidates.push([
+      source,
+      { x: (segment.sourceX + segment.targetX) / 2, y },
+      target,
+    ]);
+  }
+
+  for (const x of verticalLanes.slice(0, 1)) {
+    candidates.push([
+      source,
+      { x, y: (segment.sourceY + segment.targetY) / 2 },
+      target,
+    ]);
+  }
+
+  for (const y of horizontalLanes) {
+    for (const x of verticalLanes) {
+      candidates.push([source, { x, y }, target]);
+    }
+  }
+
+  return candidates;
+}
+
+function getLaneValues(
+  obstacles: ObstacleRect[],
+  orientation: "horizontal" | "vertical",
+  start: number,
+  end: number,
+) {
+  if (obstacles.length === 0) {
+    return [(start + end) / 2];
+  }
+
+  const minLane =
+    Math.min(...obstacles.map((rect) => (orientation === "horizontal" ? rect.minY : rect.minX))) -
+    EDGE_NODE_PADDING;
+  const maxLane =
+    Math.max(...obstacles.map((rect) => (orientation === "horizontal" ? rect.maxY : rect.maxX))) +
+    EDGE_NODE_PADDING;
+  const reference = (start + end) / 2;
+
+  return Math.abs(reference - minLane) <= Math.abs(reference - maxLane)
+    ? [minLane, maxLane]
+    : [maxLane, minLane];
+}
+
+function scorePath(points: Point[], obstacles: ObstacleRect[]) {
+  let intersections = 0;
+  let length = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const segment = {
+      sourceX: start.x,
+      sourceY: start.y,
+      targetX: end.x,
+      targetY: end.y,
+    };
+
+    intersections += obstacles.filter((rect) => intersectsSegmentRect(segment, rect)).length;
+    length += Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+  }
+
+  return intersections * 100000 + length + points.length * 250;
+}
+
+function intersectsPath(points: Point[], obstacles: ObstacleRect[]) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const segment = {
+      sourceX: start.x,
+      sourceY: start.y,
+      targetX: end.x,
+      targetY: end.y,
+    };
+
+    if (obstacles.some((rect) => intersectsSegmentRect(segment, rect))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function createCurvePath(points: Point[]) {
+  const [start, ...rest] = points;
+
+  if (rest.length === 1) {
+    const [end] = rest;
+    const controlOffset = Math.min(
+      180,
+      Math.max(60, Math.abs(end.x - start.x) * 0.35 + Math.abs(end.y - start.y) * 0.2),
+    );
+    const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+    const firstControl = horizontal
+      ? { x: start.x + Math.sign(end.x - start.x || 1) * controlOffset, y: start.y }
+      : { x: start.x, y: start.y + Math.sign(end.y - start.y || 1) * controlOffset };
+    const secondControl = horizontal
+      ? { x: end.x - Math.sign(end.x - start.x || 1) * controlOffset, y: end.y }
+      : { x: end.x, y: end.y - Math.sign(end.y - start.y || 1) * controlOffset };
+
+    return `M ${start.x} ${start.y} C ${firstControl.x} ${firstControl.y}, ${secondControl.x} ${secondControl.y}, ${end.x} ${end.y}`;
+  }
+
+  let path = `M ${start.x} ${start.y}`;
+  let current = start;
+
+  for (const point of rest) {
+    const midX = (current.x + point.x) / 2;
+    const midY = (current.y + point.y) / 2;
+
+    path += ` Q ${current.x} ${current.y}, ${midX} ${midY}`;
+    current = point;
+  }
+
+  path += ` T ${current.x} ${current.y}`;
+
+  return path;
+}
+
+function toSourcePoint(segment: { sourceX: number; sourceY: number }) {
+  return {
+    x: segment.sourceX,
+    y: segment.sourceY,
+  };
+}
+
+function toTargetPoint(segment: { targetX: number; targetY: number }) {
+  return {
+    x: segment.targetX,
+    y: segment.targetY,
+  };
+}
+
+function intersectsSegmentRect(
+  segment: { sourceX: number; sourceY: number; targetX: number; targetY: number },
+  rect: ObstacleRect,
+) {
+  const minX = Math.min(segment.sourceX, segment.targetX);
+  const maxX = Math.max(segment.sourceX, segment.targetX);
+  const minY = Math.min(segment.sourceY, segment.targetY);
+  const maxY = Math.max(segment.sourceY, segment.targetY);
+
+  return maxX >= rect.minX && minX <= rect.maxX && maxY >= rect.minY && minY <= rect.maxY;
+}
+
+function getObstacleRect(node: SkillMapFlowNode): ObstacleRect {
+  const width = node.measured?.width ?? node.width ?? FLOW_NODE_WIDTH;
+  const height = node.measured?.height ?? node.height ?? FLOW_NODE_HEIGHT;
+
+  return {
+    minX: node.position.x - EDGE_NODE_PADDING,
+    maxX: node.position.x + width + EDGE_NODE_PADDING,
+    minY: node.position.y - EDGE_NODE_PADDING,
+    maxY: node.position.y + height + EDGE_NODE_PADDING,
+  };
+}
+
+type ObstacleRect = {
+  maxX: number;
+  maxY: number;
+  minX: number;
+  minY: number;
+};
+
+type Point = {
+  x: number;
+  y: number;
+};
+
 function createMiniMapGeometry(
   nodes: SkillMapFlowNode[],
   edges: SkillMapFlowEdge[],
@@ -434,6 +687,7 @@ function createMiniMapGeometry(
     isActiveSearchMatch: node.data.isActiveSearchMatch,
     isSearchMatch: node.data.isSearchMatch,
     label: node.data.label,
+    nodeNumber: node.data.nodeNumber,
     progressStatus: node.data.skillMapNode.progressStatus,
     selected: Boolean(node.selected),
     tags: node.data.tags,
@@ -499,6 +753,7 @@ function createMiniMapGeometry(
       isActiveSearchMatch: node.isActiveSearchMatch,
       isSearchMatch: node.isSearchMatch,
       label: node.label,
+      nodeNumber: node.nodeNumber,
       progressStatus: node.progressStatus,
       selected: node.selected,
       tags: node.tags,
@@ -514,6 +769,7 @@ type MiniMapNode = {
   isActiveSearchMatch: boolean;
   isSearchMatch: boolean;
   label: string;
+  nodeNumber: string;
   progressStatus: StudySkillMapNode["progressStatus"];
   selected: boolean;
   tags: string[];

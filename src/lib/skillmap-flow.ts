@@ -1,10 +1,12 @@
 import { Position, type Edge, type Node } from "@xyflow/react";
 
+import { getSkillMapNodeNumber } from "@/lib/skillmap-numbering";
 import { getSkillMapNodePath } from "@/lib/skillmap-search";
 import type { NodeConnectionPosition, StudySkillMapNode } from "@/types/node";
 import type { StudySkillMapEdge } from "@/types/skillmap";
 
 export type SkillMapFlowNodeData = {
+  nodeNumber: string;
   label: string;
   description: string;
   tags: string[];
@@ -32,8 +34,8 @@ export type SkillMapFlowElements = {
 };
 
 const NODE_WIDTH = 220;
-const HORIZONTAL_GAP = 360;
-const VERTICAL_GAP = 148;
+const HORIZONTAL_GAP = 420;
+const VERTICAL_GAP = 180;
 
 export function createSkillMapFlowElements(
   skillMap: StudySkillMapNode,
@@ -84,6 +86,7 @@ export function createSkillMapFlowElements(
         y,
       },
       data: {
+        nodeNumber: getSkillMapNodeNumber(indexPath),
         label: node.title,
         description: node.description,
         tags: node.tags,
@@ -151,7 +154,7 @@ export function createSkillMapFlowElements(
         target: childId,
         sourceHandle: `source-${edgePositions.sourcePosition.toLowerCase()}`,
         targetHandle: `target-${edgePositions.targetPosition.toLowerCase()}`,
-        type: "smoothstep",
+        type: "hierarchyAvoiding",
         animated: false,
         interactionWidth: 18,
         data: {
@@ -190,7 +193,7 @@ export function createSkillMapFlowElements(
       target: secondNode.id,
       sourceHandle: `source-${edgePositions.sourcePosition.toLowerCase()}`,
       targetHandle: `target-${edgePositions.targetPosition.toLowerCase()}`,
-      type: "bezier",
+      type: "relatedAvoiding",
       animated: false,
       interactionWidth: 18,
       data: {

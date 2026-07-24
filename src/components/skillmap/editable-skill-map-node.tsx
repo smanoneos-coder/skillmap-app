@@ -16,6 +16,11 @@ function EditableSkillMapNodeComponent({ data, selected }: NodeProps<SkillMapFlo
     >
       <ConnectionHandles editMode={data.editMode} prefix="target" />
       <ConnectionHandles editMode={data.editMode} prefix="source" />
+      {data.nodeNumber ? (
+        <div className="mb-2 inline-flex max-w-full rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-primary">
+          {data.nodeNumber}
+        </div>
+      ) : null}
       {data.imageUrl ? (
         <div className="mb-2 overflow-hidden rounded-md border bg-muted/30">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -47,6 +52,7 @@ function areNodePropsEqual(
 ) {
   return (
     previousProps.selected === nextProps.selected &&
+    previousProps.data.nodeNumber === nextProps.data.nodeNumber &&
     previousProps.data.label === nextProps.data.label &&
     previousProps.data.description === nextProps.data.description &&
     previousProps.data.imageUrl === nextProps.data.imageUrl &&

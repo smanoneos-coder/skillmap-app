@@ -43,26 +43,13 @@ export default async function SkillMapsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-2 sm:px-5">
-      <div className="mx-auto flex min-h-[calc(100vh-1rem)] w-full max-w-[1920px] flex-col gap-2">
-        <header className="flex w-fit shrink-0 flex-col gap-3 rounded-lg border bg-card px-4 py-2 sm:flex-row sm:items-center">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold">SkillMap AI</h1>
-            <p className="break-words text-sm text-muted-foreground">{user.email}</p>
-          </div>
-          <form action="/auth/logout" method="post">
-            <Button type="submit" variant="outline">
-              Log out
-            </Button>
-          </form>
-        </header>
-
-        <section className="min-h-0 flex-1">
-          <SkillMapGenerator
-            initialSavedSkillMaps={savedSkillMaps}
-            initialSavedSkillMapsError={savedSkillMapsError}
-          />
-        </section>
+    <main className="min-h-screen overflow-hidden bg-background px-2 py-2 sm:px-3">
+      <div className="mx-auto h-[calc(100vh-1rem)] w-full max-w-[1920px]">
+        <SkillMapGenerator
+          initialSavedSkillMaps={savedSkillMaps}
+          initialSavedSkillMapsError={savedSkillMapsError}
+          userEmail={user.email ?? null}
+        />
       </div>
     </main>
   );
